@@ -54,7 +54,10 @@ All four libraries are MIT licensed and load from public CDNs.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[PolyForm Noncommercial 1.0.0](LICENSE). In short, and the LICENSE file is what counts:
+
+- **Free for noncommercial use.** Use it to write your own CV, change it, and share it, as long as you keep the `Required Notice` line from LICENSE.
+- **No commercial use.** Don't sell it, or include it in a paid product or service, without asking first.
 
 ---
 
@@ -101,4 +104,7 @@ MIT. See [LICENSE](LICENSE).
 
 ### 授權
 
-MIT，詳見 [LICENSE](LICENSE)。
+[PolyForm Noncommercial 1.0.0](LICENSE)。以下是簡單說明，正式內容以 LICENSE 檔案為準：
+
+- **非商業用途可以免費使用：** 可以拿來寫自己的履歷、修改、分享，但要保留 LICENSE 裡的 `Required Notice` 那一行。
+- **不能商業使用：** 未經同意，不能拿去賣，也不能放進收費的產品或服務。
