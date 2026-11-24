@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CV Cards</title>
+<meta name="description" content="Build tailored CVs from reusable cards. Drag, reword per job, export PDF or DOCX. Runs in your browser; your data stays on your computer.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+<style>
+:root{
+  --bg:#0a0a0a; --panel:#111; --card:#171717; --line:#272727; --line2:#333;
+  --fg:#e9e6df; --mute:#8b877f; --dim:#5d5a55; --acc:#b9c7a8; --warn:#d9a07a;
+  --mono:'DM Mono','Noto Sans TC',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:12.5px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:transparent;border:1px solid var(--line2);border-radius:4px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--mute)}
+button.pri{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.pri:hover{background:#fff}
+button.ghost{border-color:transparent;color:var(--mute);padding:3px 6px}
+button.ghost:hover{color:var(--fg);border-color:var(--line2)}
+button.danger:hover{color:var(--warn);border-color:var(--warn)}
+input,select,textarea{background:var(--bg);border:1px solid var(--line2);border-radius:4px;padding:6px 8px;width:100%}
+select{-webkit-appearance:none;appearance:none;padding-right:28px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:10px 6px;text-overflow:ellipsis}
+select:disabled{opacity:.5}
+input:focus,select:focus,textarea:focus{outline:1px solid var(--acc);outline-offset:0}
+textarea{resize:vertical;min-height:60px;line-height:1.5}
+label{display:block;color:var(--mute);font-size:11px;margin:10px 0 4px}
+
+/* top bar */
+.top{height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+.brand{font-weight:500;letter-spacing:.14em;margin-right:10px}
+.top select{width:auto;max-width:260px}
+.spacer{flex:1}
+.status{color:var(--dim);font-size:11px;margin-right:6px}
+
+/* layout */
+.main{display:grid;grid-template-columns:var(--libw,290px) 7px 1fr;height:calc(100vh - 52px)}
+.split{cursor:col-resize;background:var(--bg);border-left:1px solid var(--line);position:relative;touch-action:none}
+.split::after{content:'';position:absolute;top:50%;left:2px;width:2px;height:36px;margin-top:-18px;border-radius:1px;background:var(--line2)}
+.split:hover,.split.on{background:#1b1b1b}.split:hover::after,.split.on::after{background:var(--acc)}
+body.resizing{cursor:col-resize;user-select:none}
+body.resizing #ws{pointer-events:none}
+.col{overflow:auto;padding:14px}
+/* thin, quiet scrollbars that only show on hover */
+.col{scrollbar-width:thin;scrollbar-color:transparent transparent}
+.col:hover{scrollbar-color:#3a3a3a transparent}
+.col::-webkit-scrollbar{width:6px;height:6px}
+.col::-webkit-scrollbar-track{background:transparent}
+.col::-webkit-scrollbar-thumb{background:transparent;border-radius:3px}
+.col:hover::-webkit-scrollbar-thumb{background:#3a3a3a}
+.col::-webkit-scrollbar-thumb:hover{background:#555}
+.col::-webkit-scrollbar-corner{background:transparent}
+.libhead{position:sticky;top:-14px;z-index:3;background:var(--bg);margin:-14px -14px 10px;padding:14px 14px 8px;border-bottom:1px solid var(--line)}
+.libhead .tabs{margin-bottom:0}
+.libbtns{display:flex;gap:4px;flex-shrink:0}
+.libhead .col-title>span:first-child{white-space:nowrap}
+.libtools{display:flex;justify-content:flex-end;gap:4px;margin-top:6px}
+.libtools button{font-size:11px;padding:3px 7px}
+.libbtns button{font-size:11px;padding:4px 7px;letter-spacing:0;text-transform:none}
+#libUndo{color:var(--acc)}
+.main.collapsed{grid-template-columns:1fr}
+.main.collapsed #libCol,.main.collapsed .split{display:none}
+.wshead{position:sticky;top:-14px;left:-14px;z-index:4;background:#161616;margin:-14px -14px 14px;padding:14px 14px 10px;border-bottom:1px solid var(--line)}
+.wshead .wsbar{margin:0 auto}
+#libShow{border-color:var(--acc);color:var(--acc)}
+.zoomctl{display:flex;gap:2px;align-items:center}
+.zoomctl button{padding:3px 8px}
+#zFit{min-width:54px;font-size:11px}
+#ws{touch-action:pan-x pan-y}
+#libList{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:7px}
+#libList .hint{grid-column:1/-1}
+.col-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;color:var(--mute);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+@media (max-width:900px){
+  .main{grid-template-columns:1fr;height:auto}
+  .col{overflow:visible}
+  #libCol{border-bottom:1px solid var(--line)}
+  .split{display:none}
+  .libhead{position:static;margin:0 0 10px;padding:0 0 8px}
+  .wshead{position:static;margin:0 0 12px;padding:0 0 10px}
+  .top{flex-wrap:wrap;height:auto;padding:8px 14px}
+}
+
+/* library */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.tab{font-size:11px;padding:3px 8px;border-color:var(--line)}
+.tab.on{border-color:var(--fg)}
+.libcard{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:9px 10px;margin-bottom:0;cursor:grab;position:relative;font-family:var(--mono);color:var(--fg);font-size:12.5px;line-height:1.4}
+.libcard:hover{border-color:var(--line2)}
+.libcard .t{font-weight:500;padding-right:30px}
+.libcard .s{color:var(--mute);font-size:11px;margin-top:3px}
+.libcard .acts{position:absolute;top:5px;right:5px}
+.tag{display:inline-block;font-size:10px;color:var(--bg);background:var(--mute);border-radius:3px;padding:0 5px;margin-right:6px;vertical-align:1px}
+.tag.experience{background:#b9c7a8}.tag.education{background:#a8b9c7}.tag.project{background:#c7b2a8}
+.tag.skills{background:#c2c7a8}.tag.summary{background:#c7a8c0}.tag.award{background:#c7bfa8}
+.inuse{color:var(--acc);font-size:10px;margin-left:5px}
+.hint{color:var(--dim);font-size:11px;line-height:1.7;margin:10px 0}
+
+/* workspace */
+#ws{background:#161616}
+.wsbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:794px;margin:0 auto}
+.wsbar .pc{color:var(--mute);font-size:11px;margin-left:auto}
+#paperWrap{margin:0 auto;width:max-content}
+.ws-note{color:var(--dim);font-size:11px;line-height:1.7;max-width:794px;margin:12px auto 30px}
+
+/* CV document (shared by editor and export) */
+.cv{width:794px;background:#fff;color:#151515;padding:60px 64px;font-family:Helvetica,Arial,'Noto Sans TC',sans-serif;font-size:12.7px;line-height:1.42;position:relative}
+.cv-name{font-size:26px;font-weight:700;letter-spacing:.01em;line-height:1.2}
+.cv-headline{font-size:14.5px;color:#444;margin-top:3px}
+.cv-contact{font-size:12px;color:#444;margin-top:5px}
+.cv-contact .sep{margin:0 7px;color:#999}
+.cv-contact .ci{white-space:nowrap}
+.cv-contact .cl{display:block}
+.cv-contact.lines .cl+.cl{margin-top:2px}
+.cv-head.right{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}
+.cv-head.right .cv-contact{margin-top:3px;text-align:right;line-height:1.6;flex-shrink:0}
+.cv-head{padding-bottom:6px}
+.cv h2{font-size:13.3px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #222;padding-bottom:3px;margin:16px 0 7px}
+.cv-entry{margin-bottom:8px}
+.cv-row{display:flex;justify-content:space-between;gap:14px}
+.cv-title{font-weight:700;font-size:14px}
+.cv-org{font-weight:400;font-size:14px}
+.cv-date{white-space:nowrap;font-size:12.5px;color:#333}
+.cv-sub{font-style:italic;color:#555}
+.cv-text{margin:2px 0 4px;white-space:pre-line}
+.cv ul{margin:3px 0 0;padding-left:17px;list-style:none}
+.cv li{margin:0 0 2px}
+.cv [data-atom]{position:relative}
+.cv li .dot{position:absolute;left:-13px;top:var(--push,0px)}
+.cv-skill{margin-bottom:3px}
+.cv-entry.sk{margin-bottom:0}
+
+/* editor-only layer on the paper */
+#paper{box-shadow:0 2px 24px rgba(0,0,0,.5)}
+#paper [data-atom]{position:relative}
+#paper [contenteditable]{outline:none;border-radius:2px;cursor:text}
+#paper [contenteditable]:hover{background:#f4f4f1}
+#paper [contenteditable]:focus{background:#eef3e8;box-shadow:0 0 0 2px #eef3e8}
+#paper [contenteditable]:empty::before{content:attr(data-ph);color:#b5b5b5}
+#paper .ed.ov{background:#f1f5ec}
+#paper .pg-mark{position:absolute;left:0;right:0;border-top:1px dashed #c9c9c9;font:10px var(--mono);color:#aaa;text-align:right;padding:2px 8px 0 0;pointer-events:none}
+#paper .clickable{cursor:pointer;border-radius:2px}
+#paper .clickable:hover{background:#f4f4f1}
+#paper .ph{color:#b5b5b5}
+.ctl{position:absolute;opacity:0;transition:opacity .12s;display:flex;gap:2px;z-index:2;font-family:var(--mono)}
+.ctl button{background:#fff;color:#777;border:1px solid #ddd;border-radius:3px;padding:0;width:22px;height:22px;font-size:12px;line-height:20px;text-align:center}
+.ctl button:hover{color:#111;border-color:#999}
+.ctl button sup{font-size:8px;color:#8a6}
+.ctl .hdl{cursor:grab;color:#aaa;user-select:none;font-size:13px;line-height:22px;padding:0 4px}
+.ctl .hdl:hover{color:#333}
+.sec-ctl{left:-34px;top:calc(var(--push,0px) - 2px)}
+.sec-del{left:auto;right:-34px;top:calc(var(--push,0px) - 2px)}
+.ent-hdl{left:-34px;top:calc(var(--push,0px))}
+.ent-ctl{right:-36px;top:calc(var(--push,0px));flex-direction:column}
+.li-hdl{left:-62px;top:calc(var(--push,0px) - 3px);align-items:center}
+.li-hide{right:-34px;top:calc(var(--push,0px) - 2px)}
+.cv-sec:has(> h2:hover) .sec-ctl,.cv-sec:has(> h2:hover) .sec-del,
+.cv-entry:hover .ent-hdl,.cv-entry:hover .ent-ctl,
+#paper li:hover > .ctl{opacity:1}
+@media (hover:none){.ctl{opacity:.55}}
+.cv-items{min-height:6px}
+.cv-items:empty{min-height:40px;border:1px dashed #d4d4d4;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.cv-items:empty::before{content:'把左邊的卡片拖到這裡';color:#aaa;font:11px var(--mono)}
+.cv-entry.missing{color:#b55;font-style:italic}
+#paper .sortable-ghost{opacity:.35}
+#paper .libcard{margin:4px 0}
+
+/* popover + modal */
+.bmenu{position:fixed;z-index:25;background:var(--panel);border:1px solid var(--line2);border-radius:6px;padding:10px;width:340px;max-height:60vh;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+.bmenu .row{display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-top:1px solid var(--line)}
+.bmenu .row:first-of-type{border-top:0}
+.bmenu input[type=checkbox]{width:auto;margin-top:3px;accent-color:var(--acc)}
+.bmenu .txt{flex:1;line-height:1.5}
+.bmenu .txt.off{color:var(--dim);text-decoration:line-through}
+.bmenu .ovtag{color:var(--acc);font-size:10px}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:flex-start;justify-content:center;z-index:20;overflow:auto;padding:40px 14px}
+.modal{background:var(--panel);border:1px solid var(--line2);border-radius:8px;width:min(620px,100%);padding:18px 20px}
+.modal h3{margin:0 0 6px;font-weight:500;font-size:14px}
+.modal .row-end{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.dsel{display:flex;gap:6px}
+.dsel select{min-width:0}
+.brow{display:flex;gap:6px;align-items:flex-start;margin-bottom:6px}
+.brow textarea{min-height:38px}
+.b-handle{cursor:grab;color:var(--dim);user-select:none;padding:8px 3px 0}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:5px;z-index:30;max-width:90vw;line-height:1.5;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+.hidden{display:none!important}
+.lang{display:flex;border:1px solid var(--line2);border-radius:4px;overflow:hidden}
+.lang button{border:0;border-radius:0;padding:5px 9px;font-size:11px;color:var(--mute)}
+.lang button.on{background:var(--fg);color:var(--bg)}
+.samplebar{max-width:794px;margin:0 auto 12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid var(--acc);color:var(--acc);border-radius:6px;padding:8px 12px;font-size:12px;line-height:1.5}
+.samplebar button{font-size:11px;padding:4px 8px}
+
+.tour-spot{position:fixed;z-index:60;border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,.62);outline:2px solid var(--acc);outline-offset:2px;pointer-events:none;transition:all .25s ease}
+.tour-block{position:fixed;inset:0;z-index:59}
+.tour-tip{position:fixed;z-index:61;width:min(320px,calc(100vw - 24px));background:var(--panel);border:1px solid var(--acc);border-radius:8px;padding:14px 16px 12px;box-shadow:0 10px 34px rgba(0,0,0,.6);transition:top .25s ease,left .25s ease}
+.tour-tip h4{margin:0 0 6px;font-size:14px;color:var(--acc);font-weight:600}
+.tour-tip p{margin:0 0 12px;font-size:12.5px;line-height:1.65;color:var(--fg)}
+.tour-foot{display:flex;align-items:center;gap:6px}
+.tour-foot .n{font-size:11px;color:var(--mute);margin-right:auto}
+.tour-foot button{font-size:11.5px;padding:4px 9px}
+.tour-foot .pri{background:var(--acc);color:var(--bg);border-color:var(--acc)}
+#paper .tour-ctl .ctl{opacity:1!important}
+#tourBtn{width:28px;padding:5px 0;text-align:center}
+.top .brand{white-space:nowrap;flex-shrink:0}
+.top .status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1}
+.top > button,.top > select,.top > .lang{flex-shrink:0}
+.hist{width:30px;height:28px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.hist:disabled{opacity:.3;cursor:default}
+</style>
+</head>
+<body>
+<div class="top">
+  <span class="brand">CV CARDS</span>
+  <select id="verSel" title="切換職缺版本"></select>
+  <button id="verNew">＋ 新版本</button>
+  <button id="verDup">複製此版</button>
+  <button id="verDel" class="danger">刪除</button>
+  <span class="spacer"></span>
+  <button id="hUndo" class="ghost hist" title="返回上一步（Ctrl+Z）" disabled><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5 2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8H7"/></svg></button>
+  <button id="hRedo" class="ghost hist" title="重做（Ctrl+Shift+Z）" disabled><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 3.5 3 3-3 3"/><path d="M13.5 6.5h-7a4 4 0 0 0 0 8H9"/></svg></button>
+  <span class="status" id="status">載入中…</span>
+  <button id="tourBtn" class="ghost" title="使用導覽">?</button>
+  <span class="lang" id="langSw"><button data-lang="zh">中文</button><button data-lang="en">EN</button></span>
+  <button id="bkExport" title="把所有卡片和版本存成 JSON">匯出備份</button>
+  <button id="bkImport">匯入備份</button>
+  <input type="file" id="bkFile" accept=".json,application/json" class="hidden">
+  <button id="expDocx" class="pri">DOCX</button>
+  <button id="expPdf" class="pri">PDF</button>
+</div>
+
+<div class="main">
+  <div class="col" id="libCol">
+    <div class="libhead">
+      <div class="col-title"><span>卡片庫</span><span class="libbtns"><button id="newCard">＋ 新卡片</button><button id="libHide" class="ghost" title="收合卡片庫">« 收合</button></span></div>
+      <div class="tabs" id="tabs"></div>
+      <div class="libtools"><button id="libUndo" class="ghost hidden" title="回到整理前的順序">↶ 復原</button><button id="libSort" class="ghost" title="依類型排好，經歷和學歷由新到舊">⇅ 整理卡片</button></div>
+    </div>
+    <div id="libList"></div>
+    <div class="hint">把卡片拖到右邊的履歷上，或按 ＋ 直接加進這個版本。點卡片可以編輯原始內容，改動會套用到所有版本。</div>
+  </div>
+
+  <div class="split" id="split" title="拖曳調整寬度，連點兩下還原"></div>
+  <div class="col" id="ws">
+    <div class="wshead"><div class="wsbar">
+      <button id="libShow" class="hidden" title="展開卡片庫">卡片庫 »</button>
+      <button id="openJob">職缺資訊</button>
+      <button id="openProfile">個人資料</button>
+      <button id="addSec">＋ 區塊</button>
+      <span class="pc" id="pageCount"></span>
+      <span class="zoomctl"><button class="ghost" id="zOut" title="縮小">−</button><button class="ghost" id="zFit" title="回到符合寬度">100%</button><button class="ghost" id="zIn" title="放大">＋</button></span>
+    </div></div>
+    <div class="samplebar hidden" id="sampleBar"><span id="sampleMsg">這是範例內容，示範這個工具怎麼用。換成你自己的內容，或清空從頭開始。</span><span><button id="sampleClear">清空，從頭開始</button> <button class="ghost" id="sampleOk">知道了</button></span></div>
+    <div id="paperWrap"><div id="paper" class="cv"></div></div>
+    <div class="ws-note" id="wsNote"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const PAGE_W = 794, PAGE_H = 1123, MARGIN = 60, CONTENT_H = PAGE_H - 2 * MARGIN;
+const LS_KEY = 'cvcards.v1';
+const $ = (s, r = document) => r.querySelector(s);
+const uid = (p = 'x') => p + Math.random().toString(36).slice(2, 10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const LANG_KEY = 'cvcards.lang';
+let LANG = (() => { try { const l = localStorage.getItem(LANG_KEY); if (l === 'zh' || l === 'en') return l; } catch {} return /^zh/i.test(navigator.language || '') ? 'zh' : 'en'; })();
+// English strings keyed by the Chinese original; {name} placeholders are filled from vars
+const EN = {
+"DOCX 元件沒載入，請重新整理": "DOCX library didn't load. Please refresh.",
+"DOCX 產生失敗：": "Couldn't create DOCX: ",
+"JD / 筆記（不會印出）": "Job description / notes (not printed)",
+"PDF 元件沒載入，請重新整理": "PDF library didn't load. Please refresh.",
+"PDF 產生失敗：": "Couldn't create PDF: ",
+"Present（至今）": "Present",
+"html2canvas 沒載入": "html2canvas didn't load",
+"{n} 條": "{n} bullets",
+"{n} 頁 · A4": "{n} pages · A4",
+"« 收合": "« Hide",
+"↶ 復原": "↶ Undo",
+"↺ 還原": "↺ Restore",
+"⇅ 整理卡片": "⇅ Tidy cards",
+"一行接著排": "One running line",
+"下載視窗已經開著，請先處理那個": "A download prompt is already open",
+"作品名稱": "Project name",
+"作品專案": "Projects",
+"你的名字": "Your name",
+"例：Right to work in the UK: Graduate visa": "e.g. Right to work in the UK: Graduate visa",
+"依類型排好，經歷和學歷由新到舊": "Group by type, newest experience and education first",
+"個人資料": "Profile details",
+"儲存": "Save",
+"先匯出備份": "Export a backup first",
+"內容有中文：PDF 會輸出成圖片式（排版和這頁一致，但 ATS 讀不到文字）。要投需要 ATS 的職缺，建議輸出 DOCX 後在 Word 另存 PDF。": "This CV contains Chinese text, so the PDF is exported as images: it matches this page, but ATS software can't read it. For ATS-screened jobs, export DOCX and save it as PDF from Word.",
+"內部名稱（不會印出）": "Internal name (not printed)",
+"全部": "All",
+"兩行對齊（聯絡方式 / 連結）": "Two aligned lines (contact / links)",
+"公司": "Company",
+"其他": "Other",
+"其他（例：LinkedIn）": "Other (e.g. LinkedIn)",
+"切換職缺版本": "Switch CV version",
+"刪除": "Delete",
+"刪除「{h}」區塊和裡面的 {n} 張卡片？（卡片庫不受影響）": "Delete the \"{h}\" section and its {n} cards? (Your card library isn't affected.)",
+"刪除「{n}」這個版本？卡片庫的卡片不會受影響。": "Delete the version \"{n}\"? Cards in your library won't be affected.",
+"刪除區塊": "Delete section",
+"刪除卡片": "Delete card",
+"刪除這張卡片？": "Delete this card?",
+"加進這個版本": "Add to this version",
+"勾選的會印在這一版": "Ticked bullets print in this version",
+"匯入備份": "Import backup",
+"匯入失敗：": "Import failed: ",
+"匯出備份": "Export backup",
+"區塊標題": "Section heading",
+"卡片庫": "Card library",
+"卡片庫 »": "Cards »",
+"原本填的是「{v}」，選了新的就會取代": "Previously \"{v}\"; picking a new date replaces it",
+"取代": "Replace",
+"取消": "Cancel",
+"單位": "Organisation",
+"單位 / 場合": "Organisation / context",
+"回到整理前的順序": "Back to the order before tidying",
+"回到符合寬度": "Fit to width",
+"地點": "Location",
+"姓名": "Name",
+"學位 / 科系": "Degree / subject",
+"學校": "School",
+"學歷": "Education",
+"它目前在 {n} 個地方被使用，會一起移除。": " It's used in {n} place(s), which will be removed too.",
+"完成": "Done",
+"展開卡片庫": "Show card library",
+"工作權 / 簽證（會單獨一行，放在聯絡資訊最後）": "Right to work / visa (its own line, after your contact details)",
+"工作經歷": "Experience",
+"已下載：": "Downloaded: ",
+"已依類型整理，經歷和學歷由新到舊排列": "Tidied by type, newest experience and education first",
+"已加到「{h}」": "Added to \"{h}\"",
+"已加進卡片庫，拖到履歷上就會出現在這個版本": "Added to your library. Drag it onto the CV to use it in this version.",
+"已匯入": "Imported",
+"已取消下載": "Download cancelled",
+"已存在這個瀏覽器": "Saved in this browser",
+"已存檔：": "Saved: ",
+"已復原": "Restored",
+"已經是整理好的順序了": "Already tidy",
+"年份": "Year",
+"從這個版本移除": "Remove from this version",
+"所在地": "Location",
+"所有版本共用。": "Shared by all versions.",
+"技能": "Skills",
+"把卡片拖到右邊的履歷上，或按 ＋ 直接加進這個版本。點卡片可以編輯原始內容，改動會套用到所有版本。": "Drag a card onto the CV, or press ＋ to add it to this version. Click a card to edit the original; changes apply to every version.",
+"把所有卡片和版本存成 JSON": "Save all cards and versions as a JSON file",
+"拖曳區塊": "Drag section",
+"拖曳排序": "Drag to reorder",
+"拖曳條目": "Drag bullet",
+"拖曳調整寬度，連點兩下還原": "Drag to resize, double-click to reset",
+"收合卡片庫": "Hide card library",
+"改寫": "edited",
+"放大": "Zoom in",
+"新版本": "New version",
+"月份（可不填）": "Month (optional)",
+"未命名": "Untitled",
+"未命名版本": "Untitled version",
+"格式不對": "Not a CV Cards backup",
+"條列重點": "Bullets",
+"條列重點（拖 ⋮ 排序；各版本可以再個別開關）": "Bullets (drag ⋮ to reorder; each version can switch them on or off)",
+"條目開關與還原": "Show, hide or restore bullets",
+"標題": "Title",
+"檔案無法讀取": "the file couldn't be read",
+"段落文字": "Paragraph",
+"段落文字改寫過": "Paragraph edited",
+"段落文字（這類卡片已不需要，清空後這一欄就會消失）": "Paragraph (not used by this card type; clear it and the field disappears)",
+"清空，從頭開始": "Clear and start blank",
+"無法儲存，請匯出備份": "Couldn't save. Please export a backup",
+"版本": "Version",
+"版本名稱": "Version name",
+"獎項": "Awards",
+"獎項名稱": "Award name",
+"產生中…": "Creating…",
+"用「{f}」取代目前所有卡片和版本？": "Replace all current cards and versions with \"{f}\"?",
+"畫面出錯了，資料沒有被刪掉。": "Something went wrong on screen. Your data hasn't been deleted.",
+"直接點文字可以只改這一版的寫法（淡綠底代表改寫過），卡片庫原文不會動。標題、公司、日期請按 ✎ 改原始卡片。PDF 的換行和分頁跟這頁相同，文字可以選取，ATS 讀得到。": "Click any text to reword it for this version only (a light green background marks edits); the library original stays as it is. Use ✎ to change titles, companies and dates. The PDF keeps this page's line and page breaks, with selectable text that ATS software can read.",
+"知道了": "Got it",
+"確定": "OK",
+"第 {n} 頁": "Page {n}",
+"範例內容，編輯後會自動儲存": "Sample content; edits save automatically",
+"簡介": "Profile",
+"結束": "End",
+"網站 / 作品集": "Website / portfolio",
+"編輯中…": "Editing…",
+"編輯卡片庫原始卡片": "Edit the original card",
+"縮小": "Zoom out",
+"聯絡資訊排法": "Contact layout",
+"職稱": "Job title",
+"職缺資訊": "Job info",
+"至少要留一個版本": "Keep at least one version",
+"複製此版": "Duplicate",
+"載入中…": "Loading…",
+"輸入文字": "Type here",
+"這一版不印這條": "Hide in this version",
+"這一版的 Headline（留空就用個人資料的）": "Headline for this version (blank uses your profile headline)",
+"這一類還沒有卡片。": "No cards of this type yet.",
+"這個檔案格式無法在這裡下載": "This file type can't be downloaded here",
+"這個瀏覽器不允許下載": "This browser blocked the download",
+"這個版本有用到": "Used in this version",
+"這是範例內容，示範這個工具怎麼用。換成你自己的內容，或清空從頭開始。": "This is sample content showing how the tool works. Replace it with your own, or clear it and start blank.",
+"這條在這一版隱藏了，按 ☰ 可以再打開": "Hidden in this version. Use ☰ to show it again",
+"這裡改的是卡片庫原文，所有版本都會跟著變（各版本自己改寫過的條目除外）。": "You're editing the library original, so every version updates (except bullets a version has reworded).",
+"連結": "Link",
+"還原卡片庫原文": "Restore the library original",
+"錯誤訊息：": "Error: ",
+"開始": "Start",
+"關閉": "Close",
+"電話": "Phone",
+"靠右直排（每項一行）": "Right-aligned stack (one per line)",
+"預設 Headline": "Default headline",
+"頒發單位": "Awarded by",
+"類別（例：Editing）": "Category (e.g. Design)",
+"類型": "Type",
+"點一下編輯聯絡資訊和排法": "Click to edit contact details and layout",
+"（卡片已刪除）": "(card deleted)",
+"（複本）": " (copy)",
+"＋ 區塊": "＋ Section",
+"＋ 新卡片": "＋ New card",
+"＋ 新版本": "＋ New version",
+"＋ 條目": "＋ Bullet",
+"＋ 聯絡資訊": "＋ Contact details",
+"日期": "Date",
+"內容（逗號分隔）": "Items (comma separated)",
+"新卡片": "New card",
+"編輯卡片": "Edit card",
+"範例 · 品牌設計師": "Sample · Brand Designer",
+"清空所有範例卡片和版本，從空白開始？": "Clear all sample cards and versions and start blank?",
+"清空": "Clear",
+"已清空，從新增卡片開始吧": "Cleared. Start by adding a card.",
+"我的 CV": "My CV",
+"中文": "中文",
+"使用導覽": "Quick tour",
+"返回上一步（Ctrl+Z）": "Undo (Ctrl+Z)",
+"重做（Ctrl+Shift+Z）": "Redo (Ctrl+Shift+Z)",
+"沒有可以返回的步驟": "Nothing to undo",
+"沒有可以重做的步驟": "Nothing to redo",
+"已返回上一步": "Undone",
+"已重做": "Redone"
+};
+function L(zh, vars) {
+  let out = LANG === 'en' ? (EN[zh] ?? zh) : zh;
+  if (vars) out = out.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? ''));
+  return out;
+}
+const CJK = /[⺀-鿿豈-﫿＀-￯　-〿]/;
+
+const TYPES = {
+  experience: { label: '工作經歷', fields: ['title','org','location','start','end','bullets'] },
+  education:  { label: '學歷',     fields: ['title','org','location','start','end','bullets'] },
+  project:    { label: '作品專案', fields: ['title','org','start','end','link','text','bullets'] },
+  skills:     { label: '技能',     fields: ['title','text'] },
+  summary:    { label: '簡介',     fields: ['title','text','bullets'] },
+  award:      { label: '獎項',     fields: ['title','org','start','text'] },
+  custom:     { label: '其他',     fields: ['title','org','location','start','end','link','text','bullets'] },
+};
+const TITLE_LABEL = { experience:'職稱', education:'學位 / 科系', project:'作品名稱', skills:'類別（例：Editing）', summary:'內部名稱（不會印出）', award:'獎項名稱', custom:'標題' };
+const ORG_LABEL = { experience:'公司', education:'學校', project:'單位 / 場合', award:'頒發單位', custom:'單位' };
+const DEFAULT_HEADING = { summary:'Profile', experience:'Experience', education:'Education', project:'Selected Projects', skills:'Skills', award:'Awards', custom:'Additional' };
+const FIELD_LABEL = { location:'地點', start:'開始', end:'結束', link:'連結', text:'段落文字', bullets:'條列重點' };
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function parseDate(str) {
+  const s = (str || '').trim();
+  if (!s) return { m: '', y: '' };
+  if (/^(present|now|current|至今)$/i.test(s)) return { m: '', y: 'Present' };
+  let m = s.match(/^([A-Za-z]{3})[a-z]*\.?\s+(\d{4})$/);
+  if (m) { const i = MONTHS.findIndex(x => x.toLowerCase() === m[1].toLowerCase()); if (i >= 0) return { m: MONTHS[i], y: m[2] }; }
+  if ((m = s.match(/^(\d{4})$/))) return { m: '', y: m[1] };
+  if ((m = s.match(/^(\d{1,2})[\/.\-](\d{4})$/)) && +m[1] >= 1 && +m[1] <= 12) return { m: MONTHS[m[1] - 1], y: m[2] };
+  if ((m = s.match(/^(\d{4})[\/.\-](\d{1,2})$/)) && +m[2] >= 1 && +m[2] <= 12) return { m: MONTHS[m[2] - 1], y: m[1] };
+  return { m: '', y: '', raw: s };
+}
+function dateFieldHTML(k, val, label) {
+  const d = parseDate(val), nowY = new Date().getFullYear();
+  let years = ''; for (let y = nowY + 6; y >= 1980; y--) years += `<option value="${y}" ${d.y === String(y) ? 'selected' : ''}>${y}</option>`;
+  const present = d.y === 'Present';
+  return `<div><label>${label}</label><div class="dsel" data-date="${k}" data-raw="${esc(d.raw || '')}">
+    <select data-dm ${present ? 'disabled' : ''}><option value="">${L('月份（可不填）')}</option>${MONTHS.map(m => `<option value="${m}" ${d.m === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
+    <select data-dy><option value="">${L('年份')}</option>${k === 'end' ? `<option value="Present" ${present ? 'selected' : ''}>${L('Present（至今）')}</option>` : ''}${years}</select></div>
+    ${d.raw ? `<div class="hint" style="margin:4px 0 0">${L('原本填的是「{v}」，選了新的就會取代', { v: esc(d.raw) })}</div>` : ''}</div>`;
+}
+function readDateField(el) {
+  const m = el.querySelector('[data-dm]').value, y = el.querySelector('[data-dy]').value;
+  if (y === 'Present') return 'Present';
+  if (y) return m ? m + ' ' + y : y;
+  return m ? '' : (el.dataset.raw || '');
+}
+
+/* ---------- default content ---------- */
+function mkCard(type, o) {
+  return { id: uid('c'), type, title:'', org:'', location:'', start:'', end:'', link:'', text:'', ...o,
+    bullets: (o.bullets || []).map(t => ({ id: uid('b'), text: t })) };
+}
+function mkRef(cardId) { return { id: uid('i'), cardId, hidden: [], order: null, overrides: {} }; }
+function mkSection(heading, items = []) { return { id: uid('s'), heading, items }; }
+
+function defaultState() {
+  // fictional sample person, shown on first visit; nothing here is real
+  const sum = mkCard('summary', { title: 'Brand designer profile', text: 'Graphic and brand designer with six years of experience across identity, packaging and digital campaigns. I take briefs from first sketch to final artwork, and work closely with copywriters, developers and clients.' });
+  const e1 = mkCard('experience', { title: 'Senior Designer', org: 'Northfield Studio', location: 'London', start: 'Mar 2023', end: 'Present',
+    bullets: ['Led identity redesigns for 12 clients, from strategy workshops to final brand guidelines.',
+      'Built a shared Figma component library that cut layout time for campaign assets by about a third.',
+      'Mentored two junior designers and ran weekly design critiques.'] });
+  const e2 = mkCard('experience', { title: 'Graphic Designer', org: 'Bloom & Co.', location: 'Manchester', start: 'Jun 2020', end: 'Feb 2023',
+    bullets: ['Designed packaging for a 30-product skincare range, working with suppliers on print proofs and finishes.',
+      'Produced social and email campaigns that the team reused as seasonal templates.'] });
+  const e3 = mkCard('experience', { title: 'Junior Designer', org: 'Paper Lane Press', location: 'Leeds', start: 'Sep 2018', end: 'May 2020',
+    bullets: ['Laid out 20+ book covers and interiors in InDesign, preparing print-ready files.'] });
+  const pr = mkCard('project', { title: 'Community bakery rebrand', org: 'Pro bono', start: '2024', text: 'Logo, packaging and shop signage for a local bakery.' });
+  const ed = mkCard('education', { title: 'BA Graphic Design', org: 'Westbridge School of Art', location: 'Leeds', start: '2015', end: '2018' });
+  const s1 = mkCard('skills', { title: 'Design', text: 'Figma, Adobe Illustrator, Photoshop, InDesign' });
+  const s2 = mkCard('skills', { title: 'Motion', text: 'After Effects, Lottie' });
+  const s3 = mkCard('skills', { title: 'Other', text: 'Brand guidelines, print production, accessible design (WCAG)' });
+  const s4 = mkCard('skills', { title: 'Languages', text: 'English, Mandarin Chinese' });
+  const aw = mkCard('award', { title: 'Shortlisted, Westbridge Design Awards', start: '2024' });
+  const library = [sum, e1, e2, e3, pr, ed, aw, s1, s2, s3, s4];
+  const v = { id: uid('v'), name: L('範例 · 品牌設計師'), company: '', jd: '', headline: '', sections: [
+    mkSection('Profile', [mkRef(sum.id)]),
+    mkSection('Experience', [e1, e2, e3].map(c => mkRef(c.id))),
+    mkSection('Selected Projects', [mkRef(pr.id)]),
+    mkSection('Education', [mkRef(ed.id)]),
+    mkSection('Skills', [s1, s2, s3, s4].map(c => mkRef(c.id))),
+  ]};
+  return { schema: 1, sample: true,
+    profile: { name: 'Alex Chen', headline: 'Graphic & Brand Designer', email: 'alex.chen@example.com', phone: '+44 7700 900123',
+      location: 'London, UK', website: 'portfolio.example.com', extra: 'linkedin.com/in/alex-chen-example', rtw: '', contactMode: 'lines' },
+    library, versions: [v], activeVersion: v.id };
+}
+function blankState() {
+  const v = { id: uid('v'), name: L('我的 CV'), company: '', jd: '', headline: '',
+    sections: ['Profile', 'Experience', 'Education', 'Skills'].map(h => mkSection(h)) };
+  return { schema: 1, sample: false, profile: { name: '', headline: '', email: '', phone: '', location: '', website: '', extra: '', rtw: '', contactMode: 'lines' },
+    library: [], versions: [v], activeVersion: v.id };
+}
+
+/* ---------- state + persistence ---------- */
+let state = null;
+let filter = 'all';
+
+function loadLocal() { try { const j = localStorage.getItem(LS_KEY); return j ? JSON.parse(j) : null; } catch { return null; } }
+function valid(s) { return s && Array.isArray(s.library) && Array.isArray(s.versions) && s.versions.length && s.profile; }
+function sanitize(s) {
+  const str = v => (typeof v === 'string' ? v : v == null ? '' : String(v));
+  s.profile = s.profile && typeof s.profile === 'object' ? s.profile : {};
+  s.library = s.library.filter(c => c && typeof c === 'object').map(c => ({
+    ...c, id: c.id || uid('c'), type: TYPES[c.type] ? c.type : 'custom',
+    title: str(c.title), org: str(c.org), location: str(c.location), start: str(c.start), end: str(c.end), link: str(c.link), text: str(c.text),
+    bullets: (Array.isArray(c.bullets) ? c.bullets : []).filter(b => b && typeof b === 'object').map(b => ({ id: b.id || uid('b'), text: str(b.text) })),
+  }));
+  s.versions = s.versions.filter(v => v && typeof v === 'object').map(v => ({
+    ...v, id: v.id || uid('v'), name: str(v.name), company: str(v.company), jd: str(v.jd), headline: str(v.headline),
+    sections: (Array.isArray(v.sections) ? v.sections : []).filter(Boolean).map(sec => ({
+      ...sec, id: sec.id || uid('s'), heading: str(sec.heading),
+      items: (Array.isArray(sec.items) ? sec.items : []).filter(i => i && i.cardId).map(i => ({
+        ...i, id: i.id || uid('i'), hidden: Array.isArray(i.hidden) ? i.hidden : [], order: Array.isArray(i.order) ? i.order : null,
+        overrides: i.overrides && typeof i.overrides === 'object' && !Array.isArray(i.overrides) ? i.overrides : {} })),
+    })),
+  }));
+  if (!s.versions.length) s.versions = defaultState().versions;
+  if (!s.versions.some(v => v.id === s.activeVersion)) s.activeVersion = s.versions[0].id;
+  return s;
+}
+function showFatal(err) {
+  console.error(err);
+  let box = document.getElementById('fatal');
+  if (!box) { box = document.createElement('div'); box.id = 'fatal'; document.body.appendChild(box); }
+  box.style.cssText = 'position:fixed;left:50%;top:70px;transform:translateX(-50%);z-index:40;background:#2a1712;border:1px solid #d9a07a;color:#f3d9c8;padding:14px 16px;border-radius:6px;max-width:min(640px,92vw);line-height:1.6;font-size:12px';
+  box.innerHTML = `<b>${L('畫面出錯了，資料沒有被刪掉。')}</b><br>${L('錯誤訊息：')}<code>${esc((err && (err.stack || err.message)) || err).split('\n').slice(0, 3).join(' / ')}</code><br>
+    <button id="fatalBk" style="margin-top:8px">${L('先匯出備份')}</button> <button id="fatalX" style="margin-top:8px">${L('關閉')}</button>`;
+  box.querySelector('#fatalX').onclick = () => box.remove();
+  box.querySelector('#fatalBk').onclick = () => saveFile('cv-cards-backup-rescue.json', JSON.stringify(state, null, 2));
+}
+
+let saveTimer = null, saving = false, pendingSave = false, statusKey = '載入中…';
+function setStatus(t) { statusKey = t; $('#status').textContent = L(t); }
+function scheduleSave() { histTouch(); setStatus('編輯中…'); clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 700); }
+function flushSave() {
+  saveTimer = null;
+  histCommit();
+  try { localStorage.setItem(LS_KEY, JSON.stringify(state)); setStatus('已存在這個瀏覽器'); }
+  catch { setStatus('無法儲存，請匯出備份'); }
+}
+
+/* ---------- helpers ---------- */
+const V = () => state.versions.find(v => v.id === state.activeVersion);
+const card = id => state.library.find(c => c.id === id);
+function ensureActive() { if (!V()) state.activeVersion = state.versions[0].id; }
+const dates = c => [c.start, c.end].filter(Boolean).join(' – ');
+const subLine = e => (e.link || '').trim();
+const rightText = (d, loc) => [d, (loc || '').trim()].filter(Boolean).join(' · ');
+// "Title, Company" on one line; company alone takes the title style
+function headLeftHTML(title, org) {
+  title = (title || '').trim(); org = (org || '').trim();
+  if (!title) return org ? `<span class="cv-title">${esc(org)}</span>` : '<span class="cv-title"></span>';
+  return `<span><span class="cv-title">${esc(title)}</span>${org ? `<span class="cv-org">, ${esc(org)}</span>` : ''}</span>`;
+}
+function findItem(iid) {
+  for (const s of V().sections) { const item = s.items.find(i => i.id === iid); if (item) return { s, item }; }
+  return null;
+}
+
+function resolveBullets(c, item) {
+  const ord = item.order || [];
+  const list = [...c.bullets].sort((a, b) => {
+    const ia = ord.indexOf(a.id), ib = ord.indexOf(b.id);
+    return (ia < 0 ? 1e6 + c.bullets.indexOf(a) : ia) - (ib < 0 ? 1e6 + c.bullets.indexOf(b) : ib);
+  });
+  return list.map(b => ({ id: b.id, base: b.text, text: item.overrides[b.id] ?? b.text, on: !item.hidden.includes(b.id) }));
+}
+function contactOf(p) { return [p.location, p.phone, p.email, p.website, p.extra].map(s => (s || '').trim()).filter(Boolean); }
+const CONTACT_MODES = { lines: '兩行對齊（聯絡方式 / 連結）', right: '靠右直排（每項一行）', flow: '一行接著排' };
+function contactLines(p) {
+  const t = s => (s || '').trim();
+  const mode = CONTACT_MODES[p.contactMode] ? p.contactMode : 'lines';
+  const rtw = t(p.rtw) ? [[t(p.rtw)]] : []; // right to work / visa: always its own line, last
+  if (mode === 'flow') return [contactOf(p)].filter(l => l.length).concat(rtw);
+  if (mode === 'right') return contactOf(p).map(x => [x]).concat(rtw);
+  return [[p.location, p.phone, p.email].map(t).filter(Boolean), [p.website, p.extra].map(t).filter(Boolean)].filter(l => l.length).concat(rtw);
+}
+function contactHTML(lines) {
+  return lines.map(l => `<span class="cl">${l.map((x, i) => `<span class="ci">${esc(x)}${i < l.length - 1 ? '<span class="sep">·</span>' : ''}</span>`).join(' ')}</span>`).join('');
+}
+
+function resolveCV(v) {
+  const p = state.profile, sections = [];
+  for (const s of v.sections) {
+    const entries = [];
+    for (const it of s.items) {
+      const c = card(it.cardId); if (!c) continue;
+      const text = (it.overrides.__text ?? c.text ?? '').trim();
+      const bullets = resolveBullets(c, it).filter(b => b.on && b.text.trim()).map(b => b.text.trim());
+      entries.push({ type: c.type, title: c.type === 'summary' ? '' : (c.title || '').trim(), org: (c.org || '').trim(),
+        location: (c.location || '').trim(), link: (c.link || '').trim(), dates: dates(c), text, bullets });
+    }
+    if (entries.length) sections.push({ heading: (s.heading || '').trim(), entries });
+  }
+  return { name: (p.name || '').trim(), headline: ((v.headline || '').trim() || (p.headline || '').trim()), contact: contactOf(p), contactLines: contactLines(p), contactMode: CONTACT_MODES[p.contactMode] ? p.contactMode : 'lines', sections };
+}
+function hasCJK(cv) { return CJK.test(JSON.stringify(cv)); }
+
+/* ---------- top bar ---------- */
+function renderTop() {
+  $('#verSel').innerHTML = state.versions.map(v => `<option value="${v.id}" ${v.id === state.activeVersion ? 'selected' : ''}>${esc(v.name || L('未命名版本'))}${v.company ? ' · ' + esc(v.company) : ''}</option>`).join('');
+}
+$('#verSel').onchange = e => { state.activeVersion = e.target.value; scheduleSave(); renderAll(); };
+$('#verNew').onclick = () => {
+  const v = { id: uid('v'), name: L('新版本'), company: '', jd: '', headline: '',
+    sections: ['Profile','Experience','Education','Skills'].map(h => mkSection(h)) };
+  state.versions.push(v); state.activeVersion = v.id; scheduleSave(); renderAll(); openJobInfo();
+};
+$('#verDup').onclick = () => {
+  const v = clone(V()); v.id = uid('v'); v.name = (v.name || L('版本')) + L('（複本）');
+  v.sections.forEach(s => { s.id = uid('s'); s.items.forEach(i => i.id = uid('i')); });
+  state.versions.push(v); state.activeVersion = v.id; scheduleSave(); renderAll(); openJobInfo();
+};
+$('#verDel').onclick = async () => {
+  if (state.versions.length < 2) return toast(L('至少要留一個版本'));
+  if (!await ask(L('刪除「{n}」這個版本？卡片庫的卡片不會受影響。', { n: V().name }), L('刪除'))) return;
+  state.versions = state.versions.filter(v => v.id !== state.activeVersion);
+  state.activeVersion = state.versions[0].id; scheduleSave(); renderAll();
+};
+
+/* ---------- library ---------- */
+function renderLibrary() {
+  const tabs = [['all', '全部'], ...Object.entries(TYPES).map(([k, t]) => [k, t.label])];
+  $('#tabs').innerHTML = tabs.map(([k, l]) => `<button class="tab ${filter === k ? 'on' : ''}" data-f="${k}">${L(l)}</button>`).join('');
+  const used = new Set(V().sections.flatMap(s => s.items.map(i => i.cardId)));
+  const list = state.library.filter(c => filter === 'all' || c.type === filter);
+  const el = $('#libList');
+  el.innerHTML = list.length ? list.map(c => {
+    const sub = c.type === 'skills' || c.type === 'summary' ? (c.text || '').slice(0, 70) : [c.org, dates(c)].filter(Boolean).join(' · ');
+    return `<div class="libcard" data-card="${c.id}">
+      <div class="acts"><button class="ghost" data-add="${c.id}" title="${L('加進這個版本')}">＋</button></div>
+      <div class="t"><span class="tag ${c.type}">${L(TYPES[c.type].label)}</span>${esc(c.title || L('未命名'))}${used.has(c.id) ? `<span class="inuse" title="${L('這個版本有用到')}">●</span>` : ''}</div>
+      ${sub || c.bullets.length ? `<div class="s">${esc(sub)}${c.bullets.length ? (sub ? ' · ' : '') + (LANG === 'en' && c.bullets.length === 1 ? '1 bullet' : L('{n} 條', { n: c.bullets.length })) : ''}</div>` : ''}
+    </div>`;
+  }).join('') : `<div class="hint">${L('這一類還沒有卡片。')}</div>`;
+  if (window.Sortable) new Sortable(el, {
+    group: { name: 'cv', pull: 'clone', put: false }, sort: true, animation: 120,
+    filter: 'button', preventOnFilter: false, draggable: '.libcard',
+    onEnd(evt) {
+      if (evt.to !== evt.from && evt.to.dataset.sec) {
+        const cid = evt.item.dataset.card; evt.item.remove();
+        addRef(evt.to.dataset.sec, cid, evt.newIndex);
+      } else if (evt.to === evt.from && evt.oldIndex !== evt.newIndex) {
+        reorderLibrary([...el.querySelectorAll('.libcard')].map(x => x.dataset.card));
+      }
+    }
+  });
+}
+// new order for the visible (possibly filtered) cards; other cards keep their slots
+function reorderLibrary(visibleIds) {
+  const set = new Set(visibleIds);
+  const slots = []; state.library.forEach((c, i) => { if (set.has(c.id)) slots.push(i); });
+  const byId = Object.fromEntries(state.library.map(c => [c.id, c]));
+  const lib = [...state.library];
+  slots.forEach((slot, k) => { lib[slot] = byId[visibleIds[k]]; });
+  state.library = lib; scheduleSave(); renderLibrary();
+}
+// tidy: group by type, newest first within dated types; undo available for a while
+const TYPE_ORDER = ['summary', 'experience', 'education', 'project', 'award', 'skills', 'custom'];
+function dateKey(str) {
+  const d = parseDate(str);
+  if (d.y === 'Present') return 1e7;
+  if (!d.y) return -1;
+  return (+d.y) * 12 + (d.m ? MONTHS.indexOf(d.m) : 11);
+}
+let undoOrder = null, undoTimer = 0;
+function tidyLibrary() {
+  const before = state.library.map(c => c.id);
+  const idx = new Map(before.map((id, i) => [id, i]));
+  const dated = new Set(['experience', 'education', 'project', 'award']);
+  const sorted = [...state.library].sort((a, b) => {
+    const ta = TYPE_ORDER.indexOf(a.type), tb = TYPE_ORDER.indexOf(b.type);
+    if (ta !== tb) return ta - tb;
+    if (dated.has(a.type)) {
+      const ea = Math.max(dateKey(a.end), dateKey(a.start)), eb = Math.max(dateKey(b.end), dateKey(b.start));
+      if (ea !== eb) return eb - ea;
+      const sa = dateKey(a.start), sb = dateKey(b.start);
+      if (sa !== sb) return sb - sa;
+    }
+    return idx.get(a.id) - idx.get(b.id);
+  });
+  if (sorted.every((c, i) => c.id === before[i])) { toast(L('已經是整理好的順序了')); return; }
+  state.library = sorted; undoOrder = before; scheduleSave(); renderLibrary();
+  $('#libUndo').classList.remove('hidden');
+  clearTimeout(undoTimer); undoTimer = setTimeout(() => { undoOrder = null; $('#libUndo').classList.add('hidden'); }, 15000);
+  toast(L('已依類型整理，經歷和學歷由新到舊排列'));
+}
+$('#libSort').onclick = tidyLibrary;
+$('#libUndo').onclick = () => {
+  if (!undoOrder) return;
+  const byId = Object.fromEntries(state.library.map(c => [c.id, c]));
+  const restored = undoOrder.map(id => byId[id]).filter(Boolean);
+  state.library.forEach(c => { if (!undoOrder.includes(c.id)) restored.push(c); });
+  state.library = restored; undoOrder = null; clearTimeout(undoTimer);
+  $('#libUndo').classList.add('hidden'); scheduleSave(); renderLibrary(); toast(L('已復原'));
+};
+$('#tabs').onclick = e => { const f = e.target.dataset.f; if (f) { filter = f; renderLibrary(); } };
+$('#libList').onclick = e => {
+  const add = e.target.closest('[data-add]');
+  if (add) { quickAdd(add.dataset.add); return; }
+  const c = e.target.closest('[data-card]');
+  if (c) openCardEditor(c.dataset.card);
+};
+$('#newCard').onclick = () => openCardEditor(null, filter === 'all' ? 'experience' : filter);
+
+function addRef(secId, cardId, index) {
+  const s = V().sections.find(x => x.id === secId); if (!s) return;
+  s.items.splice(index ?? s.items.length, 0, mkRef(cardId));
+  structural();
+}
+function quickAdd(cardId) {
+  const c = card(cardId), v = V();
+  let s = v.sections.find(sec => sec.items.some(i => card(i.cardId)?.type === c.type))
+       || v.sections.find(sec => (sec.heading || '').toLowerCase() === DEFAULT_HEADING[c.type].toLowerCase());
+  if (!s) { s = mkSection(DEFAULT_HEADING[c.type]); v.sections.push(s); }
+  addRef(s.id, cardId);
+  toast(L('已加到「{h}」', { h: s.heading }));
+}
+
+/* ---------- paper: editable render ---------- */
+function editHTML(v) {
+  const p = state.profile, lines = contactLines(p), mode = CONTACT_MODES[p.contactMode] ? p.contactMode : 'lines';
+  let h = `<header class="cv-head ${mode === 'right' ? 'right' : ''}" data-atom><div>
+    <div class="cv-name" contenteditable="plaintext-only" data-pf="name" data-ph="${L('你的名字')}">${esc(p.name)}</div>
+    <div class="cv-headline" contenteditable="plaintext-only" data-vh data-ph="Headline">${esc(v.headline || p.headline || '')}</div></div>
+    <div class="cv-contact ${mode} clickable" data-open="profile" title="${L('點一下編輯聯絡資訊和排法')}">${lines.length ? contactHTML(lines) : `<span class="ph">${L('＋ 聯絡資訊')}</span>`}</div>
+  </header><div id="cvBody">`;
+  for (const s of v.sections) {
+    h += `<section class="cv-sec" data-sid="${s.id}">
+      <h2 data-atom data-keep>
+        <span class="ctl sec-ctl"><span class="hdl sec-hdl" title="${L('拖曳區塊')}">⋮⋮</span></span>
+        <span class="ctl sec-del"><button data-delsec="${s.id}" title="${L('刪除區塊')}">×</button></span>
+        <span contenteditable="plaintext-only" data-heading="${s.id}" data-ph="${L('區塊標題')}">${esc(s.heading)}</span>
+      </h2>
+      <div class="cv-items" data-sec="${s.id}">${s.items.map(entryHTML).join('')}</div>
+    </section>`;
+  }
+  return h + '</div>';
+}
+function entryHTML(it) {
+  const c = card(it.cardId);
+  const hdl = `<span class="ctl ent-hdl"><span class="hdl ent-handle" title="${L('拖曳排序')}">⋮⋮</span></span>`;
+  if (!c) return `<div class="cv-entry missing" data-iid="${it.id}"><div data-atom>${hdl}<span class="ctl ent-ctl"><button data-rm="${it.id}">×</button></span>${L('（卡片已刪除）')}</div></div>`;
+  const bl = resolveBullets(c, it), shown = bl.filter(b => b.on), hiddenN = bl.length - shown.length;
+  const ovN = bl.filter(b => b.text !== b.base).length + (it.overrides.__text != null ? 1 : 0);
+  const ctl = hdl + `<span class="ctl ent-ctl">
+      <button data-edit="${c.id}" title="${L('編輯卡片庫原始卡片')}">✎</button>
+      ${bl.length || ovN ? `<button data-bmenu="${it.id}" title="${L('條目開關與還原')}">☰${hiddenN ? `<sup>${hiddenN}</sup>` : ''}</button>` : ''}
+      <button data-rm="${it.id}" title="${L('從這個版本移除')}">×</button></span>`;
+  const text = it.overrides.__text ?? c.text ?? '';
+  const txtEl = `<span class="ed ${it.overrides.__text != null ? 'ov' : ''}" contenteditable="plaintext-only" data-txt="${it.id}" data-ph="${L('輸入文字')}">${esc(text)}</span>`;
+  if (c.type === 'skills') return `<div class="cv-entry sk" data-iid="${it.id}"><div class="cv-skill" data-atom>${ctl}${c.title ? `<b>${esc(c.title)}:</b> ` : ''}${txtEl}</div></div>`;
+  let h = `<div class="cv-entry" data-iid="${it.id}">`, placed = false;
+  const e = { org: c.org, location: c.location, link: c.link }, sub = subLine(e), dt = rightText(dates(c), c.location);
+  const more = !!(text || shown.length);
+  if (c.type !== 'summary' && (c.title || c.org || dt || sub)) {
+    h += `<div class="cv-ehead" data-atom ${more ? 'data-keep' : ''}>${ctl}
+      <div class="cv-row">${headLeftHTML(c.title, c.org)}<span class="cv-date">${esc(dt)}</span></div>
+      ${sub ? `<div class="cv-sub">${esc(sub)}</div>` : ''}</div>`;
+    placed = true;
+  }
+  if (text || c.type === 'summary') { h += `<p class="cv-text" data-atom>${placed ? '' : ctl}${txtEl}</p>`; placed = true; }
+  if (!placed) h += `<div data-atom data-keep style="min-height:4px">${ctl}</div>`;
+  if (shown.length) h += `<ul data-bl="${it.id}">${shown.map(b => `<li data-atom data-bid="${b.id}">
+      <span class="ctl li-hdl"><button data-hide="${it.id}" data-bid="${b.id}" title="${L('這一版不印這條')}">−</button><span class="hdl b-hdl" title="${L('拖曳條目')}">⋮</span></span><span class="dot">•</span>
+      <span class="ed ${b.text !== b.base ? 'ov' : ''}" contenteditable="plaintext-only" data-bt="${it.id}" data-bid="${b.id}">${esc(b.text)}</span>
+    </li>`).join('')}</ul>`;
+  return h + '</div>';
+}
+
+const paper = $('#paper');
+let pages = 1;
+function renderPaper() {
+  paper.innerHTML = editHTML(V());
+  bindSortables();
+  repaginate();
+}
+function structural() { scheduleSave(); renderPaper(); renderLibrary(); }
+
+function bindSortables() {
+  if (!window.Sortable) return;
+  const v = V();
+  new Sortable($('#cvBody'), { handle: '.sec-hdl', draggable: '.cv-sec', animation: 120, onEnd(evt) {
+    if (evt.oldIndex === evt.newIndex) return;
+    const [m] = v.sections.splice(evt.oldIndex, 1); v.sections.splice(evt.newIndex, 0, m); structural();
+  }});
+  paper.querySelectorAll('.cv-items').forEach(list => new Sortable(list, {
+    group: { name: 'cv', pull: true, put: true }, handle: '.ent-handle', draggable: '.cv-entry', animation: 120,
+    onEnd(evt) {
+      const from = v.sections.find(s => s.id === evt.from.dataset.sec), to = v.sections.find(s => s.id === evt.to.dataset.sec);
+      if (!from || !to || (from === to && evt.oldIndex === evt.newIndex)) return;
+      const [m] = from.items.splice(evt.oldIndex, 1); to.items.splice(evt.newIndex, 0, m); structural();
+    }
+  }));
+  paper.querySelectorAll('ul[data-bl]').forEach(ul => new Sortable(ul, {
+    handle: '.b-hdl', draggable: 'li', animation: 120, onEnd() {
+      const f = findItem(ul.dataset.bl); if (!f) return;
+      const c = card(f.item.cardId), all = resolveBullets(c, f.item);
+      const vis = [...ul.querySelectorAll('li')].map(li => li.dataset.bid);
+      let k = 0; f.item.order = all.map(b => b.on ? vis[k++] : b.id);
+      structural();
+    }
+  }));
+}
+
+/* pagination: pushes atoms that would cross a page edge onto the next page */
+function paginate(el) {
+  const s = el.getBoundingClientRect().width / PAGE_W || 1;
+  const atoms = [...el.querySelectorAll('[data-atom]')];
+  atoms.forEach(a => { a.style.paddingTop = ''; a.style.removeProperty('--push'); });
+  el.style.height = ''; el.style.minHeight = '';
+  const base = atoms.map(a => parseFloat(getComputedStyle(a).paddingTop) || 0);
+  for (let i = 0; i < atoms.length; i++) {
+    const pr = el.getBoundingClientRect().top;
+    const r = atoms[i].getBoundingClientRect();
+    const top = (r.top - pr) / s;
+    // a block is one atom, or a whole job entry when this atom starts it and the entry fits on a page
+    const blockBottom = a => {
+      const ent = a.closest('.cv-entry'), ar = a.getBoundingClientRect();
+      if (ent && ent.querySelector('[data-atom]') === a) {
+        const eb = ent.getBoundingClientRect().bottom;
+        if ((eb - ar.top) / s <= CONTENT_H) return eb;
+      }
+      return ar.bottom;
+    };
+    let bottom = blockBottom(atoms[i]);
+    if (atoms[i].dataset.keep !== undefined && atoms[i + 1]) {
+      const nb = blockBottom(atoms[i + 1]);
+      if (nb > r.top && (nb - r.top) / s <= CONTENT_H) bottom = Math.max(bottom, nb);
+      else bottom = Math.max(bottom, atoms[i + 1].getBoundingClientRect().bottom);
+    }
+    const h = (bottom - r.top) / s;
+    const pg = Math.floor(top / PAGE_H), local = top - pg * PAGE_H;
+    if (h <= CONTENT_H && local + h > PAGE_H - MARGIN) {
+      const push = (pg + 1) * PAGE_H + MARGIN - top;
+      atoms[i].style.paddingTop = (base[i] + push) + 'px';
+      atoms[i].style.setProperty('--push', push + 'px');
+    }
+  }
+  const last = atoms.length ? (atoms[atoms.length - 1].getBoundingClientRect().bottom - el.getBoundingClientRect().top) / s : 0;
+  const bodyBottom = el.querySelector('#cvBody') ? (el.querySelector('#cvBody').getBoundingClientRect().bottom - el.getBoundingClientRect().top) / s : 0;
+  const n = Math.max(1, Math.ceil((Math.max(last, bodyBottom) + MARGIN - 1) / PAGE_H));
+  el.style.height = n * PAGE_H + 'px';
+  return n;
+}
+function repaginate() {
+  paper.querySelectorAll('.pg-mark').forEach(m => m.remove());
+  pages = paginate(paper);
+  for (let k = 1; k < pages; k++) {
+    const m = document.createElement('div'); m.className = 'pg-mark'; m.style.top = (k * PAGE_H) + 'px'; m.textContent = L('第 {n} 頁', { n: k + 1 });
+    paper.appendChild(m);
+  }
+  $('#pageCount').textContent = LANG === 'en' && pages === 1 ? '1 page · A4' : L('{n} 頁 · A4', { n: pages });
+  $('#wsNote').textContent = hasCJK(resolveCV(V()))
+    ? L('內容有中文：PDF 會輸出成圖片式（排版和這頁一致，但 ATS 讀不到文字）。要投需要 ATS 的職缺，建議輸出 DOCX 後在 Word 另存 PDF。')
+    : L('直接點文字可以只改這一版的寫法（淡綠底代表改寫過），卡片庫原文不會動。標題、公司、日期請按 ✎ 改原始卡片。PDF 的換行和分頁跟這頁相同，文字可以選取，ATS 讀得到。');
+}
+let pgTimer;
+function schedulePaginate() { clearTimeout(pgTimer); pgTimer = setTimeout(repaginate, 250); }
+
+let userZoom = 1;
+const ZMIN = 0.3, ZMAX = 3;
+function fitZoom() { const w = $('#ws').clientWidth - 28 - 80; return Math.max(0.4, Math.min(1, w / PAGE_W)); }
+function fitPaper() {
+  const z = Math.max(ZMIN, Math.min(ZMAX, fitZoom() * userZoom));
+  if (Math.abs((parseFloat(paper.style.zoom) || 1) - z) > 0.001 || !paper.style.zoom) paper.style.zoom = z;
+  $('#zFit').textContent = Math.round(userZoom * 100) + '%';
+}
+// zoom while keeping the point under (cx, cy) in place
+function setUserZoom(next, cx, cy) {
+  const ws = $('#ws'), fz = fitZoom();
+  next = Math.max(ZMIN / fz, Math.min(ZMAX / fz, next));
+  const r0 = paper.getBoundingClientRect(), z0 = parseFloat(paper.style.zoom) || 1;
+  if (cx == null) { const wr = ws.getBoundingClientRect(); cx = wr.left + wr.width / 2; cy = wr.top + wr.height / 2; }
+  const ax = (cx - r0.left) / z0, ay = (cy - r0.top) / z0;
+  userZoom = next; fitPaper();
+  const z1 = parseFloat(paper.style.zoom) || 1, r1 = paper.getBoundingClientRect();
+  ws.scrollLeft += (r1.left + ax * z1) - cx;
+  ws.scrollTop += (r1.top + ay * z1) - cy;
+}
+(() => {
+  const ws = $('#ws');
+  // trackpad pinch (and ctrl/cmd + wheel)
+  ws.addEventListener('wheel', e => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const d = Math.max(-25, Math.min(25, e.deltaY)); // a mouse wheel notch is ~100, a trackpad pinch step is small
+    setUserZoom(userZoom * Math.exp(-d * 0.01), e.clientX, e.clientY);
+  }, { passive: false });
+  // two-finger touch pinch
+  const pts = new Map(); let startDist = 0, startZoom = 1;
+  const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  const mid = () => { const [a, b] = [...pts.values()]; return [(a.x + b.x) / 2, (a.y + b.y) / 2]; };
+  ws.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch') return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) { startDist = dist(); startZoom = userZoom; }
+  });
+  ws.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2 && startDist > 0) { const [mx, my] = mid(); setUserZoom(startZoom * dist() / startDist, mx, my); }
+  });
+  const up = e => { pts.delete(e.pointerId); if (pts.size < 2) startDist = 0; };
+  ws.addEventListener('pointerup', up); ws.addEventListener('pointercancel', up);
+  // Safari gesture events (stop the page itself from zooming)
+  ['gesturestart', 'gesturechange'].forEach(t => ws.addEventListener(t, e => e.preventDefault(), { passive: false }));
+  $('#zIn').onclick = () => setUserZoom(userZoom * 1.2);
+  $('#zOut').onclick = () => setUserZoom(userZoom / 1.2);
+  $('#zFit').onclick = () => setUserZoom(1);
+})();
+// collapse / expand the card library
+const LC_KEY = 'cvcards.libCollapsed';
+function setLibCollapsed(on) {
+  $('.main').classList.toggle('collapsed', on); $('#libShow').classList.toggle('hidden', !on);
+  try { localStorage.setItem(LC_KEY, on ? '1' : ''); } catch {}
+}
+try { if (localStorage.getItem(LC_KEY)) setLibCollapsed(true); } catch {}
+$('#libHide').onclick = () => setLibCollapsed(true);
+$('#libShow').onclick = () => setLibCollapsed(false);
+let fitRaf = 0;
+new ResizeObserver(() => { cancelAnimationFrame(fitRaf); fitRaf = requestAnimationFrame(fitPaper); }).observe($('#ws'));
+
+/* draggable divider between library and page */
+const LW_KEY = 'cvcards.libw';
+function setLibW(w) {
+  const max = Math.max(260, window.innerWidth - 380);
+  w = Math.round(Math.max(200, Math.min(max, w)));
+  $('.main').style.setProperty('--libw', w + 'px');
+  return w;
+}
+try { const w = +localStorage.getItem(LW_KEY); if (w) setLibW(w); } catch {}
+(() => {
+  const split = $('#split'); let startX = 0, startW = 0;
+  split.addEventListener('pointerdown', e => {
+    e.preventDefault(); split.setPointerCapture(e.pointerId);
+    startX = e.clientX; startW = $('#libCol').getBoundingClientRect().width;
+    split.classList.add('on'); document.body.classList.add('resizing');
+  });
+  split.addEventListener('pointermove', e => { if (split.classList.contains('on')) setLibW(startW + e.clientX - startX); });
+  const end = () => {
+    if (!split.classList.contains('on')) return;
+    split.classList.remove('on'); document.body.classList.remove('resizing');
+    try { localStorage.setItem(LW_KEY, String(Math.round($('#libCol').getBoundingClientRect().width))); } catch {}
+  };
+  split.addEventListener('pointerup', end); split.addEventListener('pointercancel', end);
+  split.addEventListener('dblclick', () => { setLibW(290); try { localStorage.removeItem(LW_KEY); } catch {} });
+  window.addEventListener('resize', () => { const w = $('#libCol').getBoundingClientRect().width; setLibW(w); });
+})();
+
+/* paper events */
+paper.addEventListener('input', e => {
+  const t = e.target, d = t.dataset, v = V();
+  const val = (t.innerText || '').replace(/\n+$/, '');
+  if ('pf' in d) state.profile[d.pf] = val;
+  else if ('vh' in d) v.headline = val.trim() === (state.profile.headline || '').trim() ? '' : val;
+  else if (d.heading) { const s = v.sections.find(x => x.id === d.heading); if (s) s.heading = val; }
+  else if (d.txt) {
+    const f = findItem(d.txt); if (!f) return; const c = card(f.item.cardId);
+    if (val === (c.text || '')) delete f.item.overrides.__text; else f.item.overrides.__text = val;
+    t.classList.toggle('ov', f.item.overrides.__text != null);
+  } else if (d.bt) {
+    const f = findItem(d.bt); if (!f) return; const c = card(f.item.cardId);
+    const base = c.bullets.find(b => b.id === d.bid)?.text;
+    if (val === base) delete f.item.overrides[d.bid]; else f.item.overrides[d.bid] = val;
+    t.classList.toggle('ov', f.item.overrides[d.bid] != null);
+  } else return;
+  scheduleSave(); schedulePaginate();
+  if ('vh' in d || 'pf' in d) renderTop();
+});
+paper.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.isContentEditable && !(e.target.dataset.txt && e.shiftKey)) { e.preventDefault(); e.target.blur(); }
+});
+paper.addEventListener('click', async e => {
+  const open = e.target.closest('[data-open]');
+  if (open) { openProfile(); return; }
+  const b = e.target.closest('button'); if (!b) return;
+  const d = b.dataset;
+  if (d.rm) { const f = findItem(d.rm); f.s.items = f.s.items.filter(i => i.id !== d.rm); structural(); }
+  else if (d.edit) openCardEditor(d.edit);
+  else if (d.bmenu) openBulletMenu(d.bmenu, b);
+  else if (d.hide) { const f = findItem(d.hide); if (!f.item.hidden.includes(d.bid)) f.item.hidden.push(d.bid); structural(); toast(L('這條在這一版隱藏了，按 ☰ 可以再打開')); }
+  else if (d.delsec) {
+    const s = V().sections.find(x => x.id === d.delsec);
+    if (s.items.length && !await ask(L('刪除「{h}」區塊和裡面的 {n} 張卡片？（卡片庫不受影響）', { h: s.heading, n: s.items.length }), L('刪除'))) return;
+    V().sections = V().sections.filter(x => x.id !== d.delsec); structural();
+  }
+});
+
+$('#addSec').onclick = () => {
+  const s = mkSection(''); V().sections.push(s); structural();
+  setTimeout(() => { const i = paper.querySelector(`[data-heading="${s.id}"]`); if (i) { i.focus(); i.scrollIntoView({ block: 'center' }); } }, 30);
+};
+
+/* bullet on/off popover */
+let bmenuEl = null;
+function closeBulletMenu() { if (bmenuEl) { bmenuEl.remove(); bmenuEl = null; } }
+function openBulletMenu(iid, anchor) {
+  closeBulletMenu();
+  const draw = () => {
+    const f = findItem(iid); if (!f) return closeBulletMenu();
+    const c = card(f.item.cardId), bl = resolveBullets(c, f.item), tov = f.item.overrides.__text != null;
+    bmenuEl.innerHTML = `<div style="color:var(--mute);font-size:11px;margin-bottom:6px">${esc(c.title || L(TYPES[c.type].label))} · ${L('勾選的會印在這一版')}</div>
+      ${tov ? `<div class="row"><span class="txt">${L('段落文字改寫過')} <span class="ovtag">${L('改寫')}</span></span><button class="ghost" data-rt>${L('↺ 還原')}</button></div>` : ''}
+      ${bl.map(b => `<div class="row"><input type="checkbox" data-tg="${b.id}" ${b.on ? 'checked' : ''}>
+        <span class="txt ${b.on ? '' : 'off'}">${esc(b.text)}${b.text !== b.base ? ` <span class="ovtag">${L('改寫')}</span>` : ''}</span>
+        ${b.text !== b.base ? `<button class="ghost" data-rb="${b.id}" title="${L('還原卡片庫原文')}">↺</button>` : ''}</div>`).join('')}
+      <div style="display:flex;justify-content:flex-end;margin-top:8px"><button data-close>${L('完成')}</button></div>`;
+  };
+  bmenuEl = document.createElement('div'); bmenuEl.className = 'bmenu'; document.body.appendChild(bmenuEl);
+  draw();
+  const r = anchor.getBoundingClientRect();
+  bmenuEl.style.left = Math.max(8, Math.min(window.innerWidth - 350, r.right - 340)) + 'px';
+  bmenuEl.style.top = Math.min(window.innerHeight - bmenuEl.offsetHeight - 8, r.bottom + 6) + 'px';
+  bmenuEl.onclick = e => {
+    const f = findItem(iid); if (!f) return;
+    const t = e.target;
+    if (t.dataset.tg) { const id = t.dataset.tg; f.item.hidden = f.item.hidden.filter(x => x !== id); if (!t.checked) f.item.hidden.push(id); }
+    else if (t.dataset.rb) delete f.item.overrides[t.dataset.rb];
+    else if ('rt' in t.dataset) delete f.item.overrides.__text;
+    else if ('close' in t.dataset) return closeBulletMenu();
+    else return;
+    draw(); scheduleSave(); renderPaper();
+  };
+}
+document.addEventListener('mousedown', e => { if (bmenuEl && !bmenuEl.contains(e.target) && !e.target.closest('[data-bmenu]')) closeBulletMenu(); });
+
+/* ---------- modals ---------- */
+function modal(html, width) {
+  const bg = document.createElement('div'); bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" ${width ? `style="width:min(${width}px,100%)"` : ''}>${html}</div>`;
+  document.body.appendChild(bg);
+  bg.addEventListener('click', e => { if (e.target === bg) bg.remove(); });
+  return bg;
+}
+function openJobInfo() {
+  const v = V();
+  const bg = modal(`<h3>${L('職缺資訊')}</h3>
+    <div class="grid2"><div><label>${L('版本名稱')}</label><input id="jName" value="${esc(v.name)}"></div>
+    <div><label>${L('公司')}</label><input id="jCo" value="${esc(v.company)}"></div></div>
+    <label>${L('這一版的 Headline（留空就用個人資料的）')}</label><input id="jHead" value="${esc(v.headline)}" placeholder="${esc(state.profile.headline)}">
+    <label>${L('JD / 筆記（不會印出）')}</label><textarea id="jJd" rows="8">${esc(v.jd)}</textarea>
+    <div class="row-end"><button data-x>${L('取消')}</button><button class="pri" data-ok>${L('儲存')}</button></div>`);
+  setTimeout(() => $('#jName', bg).select(), 30);
+  bg.querySelector('[data-x]').onclick = () => bg.remove();
+  bg.querySelector('[data-ok]').onclick = () => {
+    v.name = $('#jName', bg).value; v.company = $('#jCo', bg).value; v.headline = $('#jHead', bg).value; v.jd = $('#jJd', bg).value;
+    bg.remove(); scheduleSave(); renderTop(); renderPaper();
+  };
+}
+function openProfile() {
+  const P = state.profile;
+  const f = [['name','姓名'],['headline','預設 Headline'],['email','Email'],['phone','電話'],['location','所在地'],['website','網站 / 作品集'],['extra','其他（例：LinkedIn）'],['rtw','工作權 / 簽證（會單獨一行，放在聯絡資訊最後）']];
+  const bg = modal(`<h3>${L('個人資料')}</h3><div class="hint" style="margin:0">${L('所有版本共用。')}</div>
+    <div class="grid2">${f.map(([k, l]) => `<div ${k === 'rtw' ? 'style="grid-column:1/-1"' : ''}><label>${L(l)}</label><input data-pf="${k}" value="${esc(P[k] || '')}" ${k === 'rtw' ? `placeholder="${L('例：Right to work in the UK: Graduate visa')}"` : ''}></div>`).join('')}</div>
+    <label>${L('聯絡資訊排法')}</label><select data-pf="contactMode">${Object.entries(CONTACT_MODES).map(([k, l]) => `<option value="${k}" ${(P.contactMode || 'lines') === k ? 'selected' : ''}>${L(l)}</option>`).join('')}</select>
+    <div class="row-end"><button data-x>${L('取消')}</button><button class="pri" data-ok>${L('儲存')}</button></div>`);
+  bg.querySelector('[data-x]').onclick = () => bg.remove();
+  bg.querySelector('[data-ok]').onclick = () => {
+    bg.querySelectorAll('[data-pf]').forEach(i => P[i.dataset.pf] = i.value);
+    bg.remove(); scheduleSave(); renderPaper();
+  };
+}
+$('#openJob').onclick = openJobInfo;
+$('#openProfile').onclick = openProfile;
+
+function openCardEditor(cardId, newType) {
+  const isNew = !cardId;
+  const draft = isNew ? mkCard(newType || 'experience', {}) : clone(card(cardId));
+  const bg = modal(`<h3>${L(isNew ? '新卡片' : '編輯卡片')}</h3>
+    <div class="hint" style="margin:0 0 4px">${isNew ? '' : L('這裡改的是卡片庫原文，所有版本都會跟著變（各版本自己改寫過的條目除外）。')}</div>
+    <label>${L('類型')}</label><select id="ceType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === draft.type ? 'selected' : ''}>${L(t.label)}</option>`).join('')}</select>
+    <div id="ceFields"></div>
+    <div class="row-end">${isNew ? '' : `<button class="danger" id="ceDel" style="margin-right:auto">${L('刪除卡片')}</button>`}
+      <button id="ceCancel">${L('取消')}</button><button class="pri" id="ceSave">${L('儲存')}</button></div>`);
+  const F = $('#ceFields', bg);
+  const brow = b => `<div class="brow" data-bid="${b.id}"><span class="b-handle">⋮</span><textarea rows="1">${esc(b.text)}</textarea><button class="ghost danger" data-delb>×</button></div>`;
+  function collect() {
+    F.querySelectorAll('[data-f]').forEach(i => draft[i.dataset.f] = i.value);
+    F.querySelectorAll('[data-date]').forEach(el => draft[el.dataset.date] = readDateField(el));
+    if (F.querySelector('#ceBul')) draft.bullets = [...F.querySelectorAll('.brow')].map(r => ({ id: r.dataset.bid, text: r.querySelector('textarea').value }));
+  }
+  function build() {
+    const fs = TYPES[draft.type].fields;
+    let h = `<label>${L(TITLE_LABEL[draft.type])}</label><input data-f="title" value="${esc(draft.title)}">`;
+    if (fs.includes('org')) h += `<label>${L(ORG_LABEL[draft.type] || '單位')}</label><input data-f="org" value="${esc(draft.org)}">`;
+    const small = ['location', 'start', 'end', 'link'].filter(k => fs.includes(k));
+    const dl = k => L(k === 'start' && !fs.includes('end') ? '日期' : FIELD_LABEL[k]);
+    if (small.length) h += `<div class="grid2">${small.map(k => (k === 'start' || k === 'end') ? dateFieldHTML(k, draft[k], dl(k))
+      : `<div><label>${L(FIELD_LABEL[k])}</label><input data-f="${k}" value="${esc(draft[k])}"></div>`).join('')}</div>`;
+    if (!fs.includes('text') && (draft.text || '').trim()) h += `<label>${L('段落文字（這類卡片已不需要，清空後這一欄就會消失）')}</label><textarea data-f="text" rows="3">${esc(draft.text)}</textarea>`;
+    if (fs.includes('text')) h += `<label>${L(draft.type === 'skills' ? '內容（逗號分隔）' : FIELD_LABEL.text)}</label><textarea data-f="text" rows="${draft.type === 'summary' ? 5 : 3}">${esc(draft.text)}</textarea>`;
+    if (fs.includes('bullets')) h += `<label>${L('條列重點（拖 ⋮ 排序；各版本可以再個別開關）')}</label><div id="ceBul">${draft.bullets.map(brow).join('')}</div><button id="ceAddB" style="margin-top:2px">${L('＋ 條目')}</button>`;
+    F.innerHTML = h;
+    const bw = $('#ceBul', F);
+    if (bw && window.Sortable) new Sortable(bw, { handle: '.b-handle', animation: 120 });
+    F.querySelectorAll('textarea').forEach(autosize);
+  }
+  build();
+  const close = () => bg.remove();
+  $('#ceType', bg).onchange = e => { collect(); draft.type = e.target.value; build(); };
+  F.onclick = e => {
+    if (e.target.id === 'ceAddB') { collect(); draft.bullets.push({ id: uid('b'), text: '' }); build(); const t = F.querySelectorAll('.brow textarea'); t[t.length - 1].focus(); }
+    if (e.target.dataset.delb !== undefined) e.target.closest('.brow').remove();
+  };
+  F.oninput = e => { if (e.target.tagName === 'TEXTAREA') autosize(e.target); };
+  F.onchange = e => {
+    if ('dy' in e.target.dataset) { const dm = e.target.parentElement.querySelector('[data-dm]'); dm.disabled = e.target.value === 'Present'; if (dm.disabled) dm.value = ''; }
+  };
+  $('#ceCancel', bg).onclick = close;
+  $('#ceSave', bg).onclick = () => {
+    collect();
+    draft.bullets = (draft.bullets || []).filter(b => b.text.trim());
+    if (isNew) state.library.push(draft);
+    else { const i = state.library.findIndex(c => c.id === draft.id); state.library[i] = draft; }
+    close(); structural();
+    if (isNew) toast(L('已加進卡片庫，拖到履歷上就會出現在這個版本'));
+  };
+  const del = $('#ceDel', bg);
+  if (del) del.onclick = async () => {
+    const n = state.versions.reduce((a, v) => a + v.sections.reduce((b, s) => b + s.items.filter(i => i.cardId === draft.id).length, 0), 0);
+    if (!await ask(L('刪除這張卡片？') + (n ? L('它目前在 {n} 個地方被使用，會一起移除。', { n }) : ''), L('刪除'))) return;
+    state.library = state.library.filter(c => c.id !== draft.id);
+    state.versions.forEach(v => v.sections.forEach(s => s.items = s.items.filter(i => i.cardId !== draft.id)));
+    close(); structural();
+  };
+}
+function autosize(t) { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
+
+function ask(msg, okLabel = L('確定')) {
+  return new Promise(res => {
+    const bg = modal(`<div style="line-height:1.6">${esc(msg)}</div>
+      <div class="row-end"><button data-no>${L('取消')}</button><button class="pri" data-ok>${esc(okLabel)}</button></div>`, 420);
+    bg.addEventListener('click', e => {
+      if (e.target.dataset.ok !== undefined) { bg.remove(); res(true); }
+      else if (e.target.dataset.no !== undefined || e.target === bg) { bg.remove(); res(false); }
+    });
+  });
+}
+let toastT;
+function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms); }
+
+/* ---------- clean render for image export ---------- */
+function cvHTML(cv) {
+  let h = `<header class="cv-head ${cv.contactMode === 'right' ? 'right' : ''}" data-atom><div>
+    <div class="cv-name">${esc(cv.name)}</div>
+    ${cv.headline ? `<div class="cv-headline">${esc(cv.headline)}</div>` : ''}</div>
+    ${cv.contactLines.length ? `<div class="cv-contact ${cv.contactMode}">${contactHTML(cv.contactLines)}</div>` : ''}
+  </header>`;
+  for (const s of cv.sections) {
+    h += `<section>${s.heading ? `<h2 data-atom data-keep>${esc(s.heading)}</h2>` : ''}`;
+    for (const e of s.entries) {
+      if (e.type === 'skills') { h += `<div class="cv-skill" data-atom>${e.title ? `<b>${esc(e.title)}:</b> ` : ''}${esc(e.text)}</div>`; continue; }
+      const sub = subLine(e);
+      h += `<div class="cv-entry">`;
+      if (e.title || e.org || e.dates || e.location || sub) h += `<div class="cv-ehead" data-atom ${e.text || e.bullets.length ? 'data-keep' : ''}>
+        <div class="cv-row">${headLeftHTML(e.title, e.org)}<span class="cv-date">${esc(rightText(e.dates, e.location))}</span></div>
+        ${sub ? `<div class="cv-sub">${esc(sub)}</div>` : ''}</div>`;
+      if (e.text) h += `<p class="cv-text" data-atom>${esc(e.text)}</p>`;
+      if (e.bullets.length) h += `<ul>${e.bullets.map(b => `<li data-atom><span class="dot">•</span>${esc(b)}</li>`).join('')}</ul>`;
+      h += `</div>`;
+    }
+    h += `</section>`;
+  }
+  return h;
+}
+/* lays out a clean, paginated copy of the page off-screen (same CSS as the editor) */
+async function layoutPage(cv) {
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;left:-20000px;top:0;width:' + PAGE_W + 'px';
+  const page = document.createElement('div'); page.className = 'cv'; page.innerHTML = cvHTML(cv);
+  holder.appendChild(page); document.body.appendChild(holder);
+  if (document.fonts) await document.fonts.ready;
+  const n = paginate(page);
+  return { page, n, cleanup: () => holder.remove() };
+}
+
+/* ---------- export ---------- */
+function fileBase() {
+  const v = V(), n = (state.profile.name || 'CV').replace(/\(.*?\)/g, '').trim();
+  return [n, 'CV', v.company || v.name].filter(Boolean).join('_').replace(/[\\/:*?"<>|·]+/g, '').replace(/\s+/g, '_').slice(0, 120);
+}
+async function saveFile(filename, data) {
+  let dl = null;
+  try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch {}
+  if (dl) {
+    try { await dl.save({ filename, data }); toast(L('已存檔：') + filename); return; }
+    catch (e) {
+      if (e && e.code === 'declined') { toast(L('已取消下載')); return; }
+      if (e && e.code === 'rate_limited') { toast(L('下載視窗已經開著，請先處理那個')); return; }
+      if (e && e.code === 'rejected_extension') { toast(L('這個檔案格式無法在這裡下載')); return; }
+    }
+  }
+  try {
+    const blob = data instanceof Blob ? data : new Blob([data]);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(L('已下載：') + filename, 3200);
+  } catch { toast(L('這個瀏覽器不允許下載')); }
+}
+
+/* text PDF: every line is written at the exact position it has on the page */
+const baselineCache = new Map();
+function baselineRatio(cs) {
+  const key = cs.fontFamily + '|' + cs.fontWeight + '|' + cs.fontStyle;
+  if (baselineCache.has(key)) return baselineCache.get(key);
+  const box = document.createElement('div');
+  box.style.cssText = `position:fixed;left:-30000px;top:0;font-family:${cs.fontFamily};font-weight:${cs.fontWeight};font-style:${cs.fontStyle};font-size:100px;line-height:normal;white-space:nowrap`;
+  box.innerHTML = 'Hxg<span style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+  document.body.appendChild(box);
+  const rg = document.createRange(); rg.selectNodeContents(box.firstChild);
+  const ratio = (box.lastChild.getBoundingClientRect().bottom - rg.getBoundingClientRect().top) / 100;
+  box.remove(); baselineCache.set(key, ratio);
+  return ratio;
+}
+function rgbOf(c) { const m = c.match(/[\d.]+/g) || [0, 0, 0]; return [+m[0], +m[1], +m[2]]; }
+
+async function buildTextPDF(cv) {
+  const { page, n, cleanup } = await layoutPage(cv);
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    for (let k = 1; k < n; k++) doc.addPage();
+    const MM = 210 / PAGE_W;
+    const pr = page.getBoundingClientRect();
+    const range = document.createRange();
+    const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const txt = node.data; if (!txt.trim()) continue;
+      const cs = getComputedStyle(node.parentElement);
+      const fs = parseFloat(cs.fontSize);
+      const bold = (parseInt(cs.fontWeight, 10) || 400) >= 600, ital = cs.fontStyle === 'italic' || cs.fontStyle === 'oblique';
+      const style = bold && ital ? 'bolditalic' : bold ? 'bold' : ital ? 'italic' : 'normal';
+      const upper = cs.textTransform === 'uppercase';
+      const ratio = baselineRatio(cs);
+      // tokens split after hyphens too, so a word the browser breaks at "live-|streaming" lands on the right lines
+      const words = [], re = /[^\s\-\u2010\u2013\u2014]+[\-\u2010\u2013\u2014]?|[\-\u2010\u2013\u2014]/g; let m, prevEnd = 0;
+      while ((m = re.exec(txt))) {
+        range.setStart(node, m.index); range.setEnd(node, m.index + m[0].length);
+        const rs = range.getClientRects();
+        const space = /\s/.test(txt.slice(prevEnd, m.index)); prevEnd = m.index + m[0].length;
+        if (!rs.length) continue;
+        words.push({ t: m[0], space, left: rs[0].left - pr.left, right: rs[rs.length - 1].right - pr.left, top: rs[0].top - pr.top });
+      }
+      const lines = []; let L = null;
+      for (const w of words) {
+        if (L && Math.abs(w.top - L.top) < fs * 0.5) { L.str += (w.space ? ' ' : '') + w.t; L.right = w.right; }
+        else { L = { top: w.top, left: w.left, right: w.right, str: w.t }; lines.push(L); }
+      }
+      doc.setFont('helvetica', style); doc.setFontSize(fs * 0.75); doc.setTextColor(...rgbOf(cs.color));
+      for (const ln of lines) {
+        let str = ln.str; if (upper) str = str.toUpperCase();
+        const base = ln.top + ratio * fs, pg = Math.min(n - 1, Math.max(0, Math.floor(ln.top / PAGE_H)));
+        doc.setPage(pg + 1);
+        const target = (ln.right - ln.left) * MM, natural = doc.getTextWidth(str);
+        let charSpace = 0;
+        if (str.length > 1 && Math.abs(target - natural) > 0.1) charSpace = Math.max(-0.25, Math.min(1, (target - natural) / (str.length - 1)));
+        doc.text(str, ln.left * MM, (base - pg * PAGE_H) * MM, { baseline: 'alphabetic', charSpace });
+      }
+    }
+    // rules under section headings
+    page.querySelectorAll('h2').forEach(h => {
+      const r = h.getBoundingClientRect(), y = r.bottom - pr.top - 0.5, pg = Math.min(n - 1, Math.floor(y / PAGE_H));
+      doc.setPage(pg + 1); doc.setDrawColor(34); doc.setLineWidth(MM);
+      doc.line((r.left - pr.left) * MM, (y - pg * PAGE_H) * MM, (r.right - pr.left) * MM, (y - pg * PAGE_H) * MM);
+    });
+    doc.setProperties({ title: cv.name + ' CV', author: cv.name });
+    return doc.output('blob');
+  } finally { cleanup(); }
+}
+
+/* image PDF via html2canvas (for content with Chinese, which Helvetica cannot draw) */
+async function buildImagePDF(cv) {
+  const { page, n, cleanup } = await layoutPage(cv);
+  try {
+    const SC = 2.5;
+    const canvas = await html2canvas(page, { scale: SC, backgroundColor: '#ffffff', width: PAGE_W, height: n * PAGE_H, windowWidth: PAGE_W, logging: false });
+    const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const ph = Math.round(PAGE_H * SC);
+    for (let k = 0; k < n; k++) {
+      const c = document.createElement('canvas'); c.width = canvas.width; c.height = ph;
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      const hh = Math.min(ph, canvas.height - k * ph);
+      if (hh > 0) g.drawImage(canvas, 0, k * ph, canvas.width, hh, 0, 0, canvas.width, hh);
+      if (k) doc.addPage();
+      doc.addImage(c.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, 210, 297);
+    }
+    return doc.output('blob');
+  } finally { cleanup(); }
+}
+
+/* DOCX via docx.js */
+function buildDocx(cv) {
+  const D = window.docx, CW = 10090;
+  // font and size on every run, so viewers that ignore Word's default style (Pages, Mac Preview) still match
+  const FONT = { ascii: 'Arial', hAnsi: 'Arial', cs: 'Arial', eastAsia: 'Microsoft JhengHei' };
+  const R = (text, o = {}) => new D.TextRun({ text, font: FONT, size: 19, ...o });
+  const P = o => new D.Paragraph(o);
+  const kids = [];
+  const nameP = () => P({ children: [R(cv.name, { bold: true, size: 40 })], spacing: { after: 40 } });
+  const headP = () => P({ children: [R(cv.headline, { size: 22, color: '444444' })], spacing: { after: 40 } });
+  const cLine = (l, align) => P({ children: l.flatMap((x, i) => [R(x, { size: 18, color: '444444' }), ...(i < l.length - 1 ? [R('  ·  ', { size: 18, color: '999999' })] : [])]),
+    alignment: align, spacing: { after: 20 } });
+  if (cv.contactMode === 'right' && cv.contactLines.length) {
+    const none = { style: D.BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+    const borders = { top: none, bottom: none, left: none, right: none };
+    kids.push(new D.Table({
+      width: { size: CW, type: D.WidthType.DXA }, columnWidths: [Math.round(CW * 0.55), CW - Math.round(CW * 0.55)],
+      borders: { top: none, bottom: none, left: none, right: none, insideHorizontal: none, insideVertical: none },
+      rows: [new D.TableRow({ children: [
+        new D.TableCell({ borders, width: { size: Math.round(CW * 0.55), type: D.WidthType.DXA }, children: [nameP(), ...(cv.headline ? [headP()] : [])] }),
+        new D.TableCell({ borders, width: { size: CW - Math.round(CW * 0.55), type: D.WidthType.DXA }, children: cv.contactLines.map(l => cLine(l, D.AlignmentType.RIGHT)) }),
+      ] })],
+    }));
+    kids.push(P({ children: [], spacing: { after: 80 } }));
+  } else {
+    kids.push(nameP());
+    if (cv.headline) kids.push(headP());
+    cv.contactLines.forEach(l => kids.push(cLine(l, D.AlignmentType.LEFT)));
+    kids.push(P({ children: [], spacing: { after: 60 } }));
+  }
+  for (const s of cv.sections) {
+    if (s.heading) kids.push(P({ children: [R(s.heading, { bold: true, size: 20, allCaps: true, characterSpacing: 16 })],
+      border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: '222222', space: 2 } }, spacing: { before: 240, after: 100 }, keepNext: true }));
+    for (const e of s.entries) {
+      if (e.type === 'skills') {
+        kids.push(P({ children: [...(e.title ? [R(e.title + ': ', { bold: true })] : []), R(e.text || '')], spacing: { after: 50 } })); continue;
+      }
+      const sub = subLine(e), more = !!(e.text || e.bullets.length);
+      const left = e.title ? [R(e.title, { bold: true, size: 21 }), ...(e.org ? [R(', ' + e.org, { size: 21 })] : [])] : (e.org ? [R(e.org, { bold: true, size: 21 })] : []);
+      const rt = rightText(e.dates, e.location);
+      if (e.title || e.org || rt) kids.push(P({ children: [...left, ...(rt ? [new D.TextRun({ children: [new D.Tab(), rt], font: FONT, size: 19, color: '333333' })] : [])],
+        tabStops: [{ type: D.TabStopType.RIGHT, position: CW }], keepNext: !!(sub || more), spacing: { before: 60 } }));
+      if (sub) kids.push(P({ children: [R(sub, { italics: true, color: '555555' })], keepNext: more, spacing: { after: 40 } }));
+      if (e.text) e.text.split(/\n+/).filter(Boolean).forEach(line => kids.push(P({ children: [R(line)], spacing: { after: 60 }, keepNext: e.bullets.length > 0, keepLines: true })));
+      e.bullets.forEach((b, bi) => kids.push(P({ children: [R(b)], numbering: { reference: 'bul', level: 0 }, spacing: { after: 30 }, keepNext: bi < e.bullets.length - 1, keepLines: true })));
+      kids.push(P({ children: [], spacing: { after: 40 } }));
+    }
+  }
+  const doc = new D.Document({
+    creator: cv.name, title: cv.name + ' CV',
+    styles: { default: { document: { run: { font: { ascii: 'Arial', hAnsi: 'Arial', cs: 'Arial', eastAsia: 'Microsoft JhengHei' }, size: 19 }, paragraph: { spacing: { line: 264 } } } } },
+    numbering: { config: [{ reference: 'bul', levels: [{ level: 0, format: D.LevelFormat.BULLET, text: '•', alignment: D.AlignmentType.LEFT,
+      style: { paragraph: { indent: { left: 300, hanging: 220 } } } }] }] },
+    sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 907, right: 907, bottom: 907, left: 907 } } }, children: kids }],
+  });
+  return D.Packer.toBlob(doc);
+}
+
+$('#expPdf').onclick = async e => {
+  if (!window.jspdf) return toast(L('PDF 元件沒載入，請重新整理'));
+  const btn = e.currentTarget; btn.disabled = true; const old = btn.textContent; btn.textContent = L('產生中…');
+  try {
+    const cv = resolveCV(V());
+    let blob;
+    if (hasCJK(cv)) { if (!window.html2canvas) throw new Error(L('html2canvas 沒載入')); blob = await buildImagePDF(cv); }
+    else blob = await buildTextPDF(cv);
+    await saveFile(fileBase() + '.pdf', blob);
+  } catch (err) { console.error(err); toast(L('PDF 產生失敗：') + (err.message || err)); }
+  finally { btn.disabled = false; btn.textContent = old; }
+};
+$('#expDocx').onclick = async e => {
+  if (!window.docx) return toast(L('DOCX 元件沒載入，請重新整理'));
+  const btn = e.currentTarget; btn.disabled = true; const old = btn.textContent; btn.textContent = L('產生中…');
+  try { const blob = await buildDocx(resolveCV(V())); await saveFile(fileBase() + '.docx', blob); }
+  catch (err) { console.error(err); toast(L('DOCX 產生失敗：') + (err.message || err)); }
+  finally { btn.disabled = false; btn.textContent = old; }
+};
+
+/* backup */
+$('#bkExport').onclick = () => {
+  const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  saveFile(`cv-cards-backup-${stamp}.json`, JSON.stringify(state, null, 2));
+};
+$('#bkImport').onclick = () => $('#bkFile').click();
+$('#bkFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const s = JSON.parse(await f.text());
+    if (!valid(s)) throw new Error(L('格式不對'));
+    if (!await ask(L('用「{f}」取代目前所有卡片和版本？', { f: f.name }), L('取代'))) return;
+    state = sanitize(s); safeRenderAll(); flushSave(); toast(L('已匯入'));
+  } catch (err) { toast(L('匯入失敗：') + (err.message || L('檔案無法讀取'))); }
+};
+
+/* ---------- boot ---------- */
+function renderAll() { closeBulletMenu(); renderTop(); renderLibrary(); renderPaper(); $('#sampleBar').classList.toggle('hidden', !state.sample); }
+
+/* ---------- language ---------- */
+const STATIC_ROOTS = ['.top', '.libhead', '#libCol > .hint', '#split', '.wshead', '#sampleBar'];
+function captureStatic() {
+  STATIC_ROOTS.forEach(sel => document.querySelectorAll(sel).forEach(root => [root, ...root.querySelectorAll('*')].forEach(el => {
+    if (el.id === 'status' || el.closest('#langSw')) return;
+    if (el.childElementCount === 0 && CJK.test(el.textContent)) el.dataset.zh = el.textContent.trim();
+    const t = el.getAttribute('title'); if (t && CJK.test(t)) el.dataset.zhTitle = t;
+  })));
+}
+function applyStatic() {
+  document.querySelectorAll('[data-zh]').forEach(el => { el.textContent = L(el.dataset.zh); });
+  document.querySelectorAll('[data-zh-title]').forEach(el => { el.title = L(el.dataset.zhTitle); });
+  document.querySelectorAll('#langSw button').forEach(b => b.classList.toggle('on', b.dataset.lang === LANG));
+  document.documentElement.lang = LANG === 'zh' ? 'zh-Hant' : 'en';
+}
+function setLang(l) {
+  LANG = l; try { localStorage.setItem(LANG_KEY, l); } catch {}
+  applyStatic(); setStatus(statusKey); safeRenderAll();
+  if (tourEls) tourShow(tourI);
+}
+$('#langSw').onclick = e => { const l = e.target.dataset.lang; if (l && l !== LANG) setLang(l); };
+$('#sampleOk').onclick = () => { state.sample = false; scheduleSave(); renderAll(); };
+$('#sampleClear').onclick = async () => {
+  if (!await ask(L('清空所有範例卡片和版本，從空白開始？'), L('清空'))) return;
+  state = blankState(); flushSave(); safeRenderAll(); toast(L('已清空，從新增卡片開始吧'));
+};
+
+/* ---------- first-run tour ---------- */
+const TOUR_KEY = 'cvcards.tour';
+const TOUR = [
+  { sel: '#libCol', zh: ['卡片庫', '先把所有經歷都寫成卡片放在這裡：工作、作品、學歷、技能。每段經歷只要寫一次。'],
+    en: ['Card library', 'Write everything you have done here once, as cards: jobs, projects, education, skills.'] },
+  { sel: '#newCard', zh: ['新增卡片', '按這裡新增一張卡片。點卡片庫裡的任何一張卡，就能編輯它的原始內容。'],
+    en: ['New card', 'Add a card here. Click any card in the library to edit its original content.'] },
+  { sel: '#libList .libcard', zh: ['拖到履歷上', '把卡片拖到履歷上，或按卡片右上角的 ＋ 直接加進來。'],
+    en: ['Drag onto your CV', 'Drag a card onto the CV, or press the ＋ on the card to add it.'] },
+  { sel: '#paper .cv-entry:has(ul) li .ed', show: '#paper .cv-entry:has(ul)', zh: ['直接在紙上改字', '點履歷上的任何文字就能直接改。在這裡改的字只影響這個版本，改過的地方會有淡綠色底，卡片庫裡的原始內容不會變。'],
+    en: ['Edit right on the page', 'Click any text on the CV to change it. Edits here only apply to this version and get a pale green background; the original card stays the same.'] },
+  { sel: '#paper .cv-entry:has(ul) .ent-ctl', show: '#paper .cv-entry:has(ul)', zh: ['每段經歷右邊的按鈕', '滑鼠移到一段經歷上，右邊會出現三個按鈕。✎ 編輯卡片庫的原始卡片，所有版本都會跟著改。☰ 勾選這一版要印哪幾條，也可以把改過的字還原。× 把這段從這個版本拿掉，卡片還留在卡片庫。'],
+    en: ['Buttons beside each entry', 'Hover an entry to see three buttons on the right. ✎ edits the original card, which updates every version. ☰ picks which bullets this version prints, and restores edited text. × removes the entry from this version; the card stays in the library.'] },
+  { sel: ['#paper .cv-entry:has(ul) .ent-hdl', '#paper .cv-entry:has(ul) li .li-hdl'], show: '#paper .cv-entry:has(ul)', zh: ['每一條左邊的按鈕', '− 讓這一條在這個版本先不印，之後可以從 ☰ 勾回來。⋮ 拖曳調整條目順序，經歷標題旁的 ⋮⋮ 可以拖動整段經歷，也能拖到別的區塊。'],
+    en: ['Buttons beside each bullet', '− hides the bullet in this version; tick it again in ☰ to bring it back. Drag ⋮ to reorder bullets, and ⋮⋮ beside an entry to move the whole entry, even into another section.'] },
+  { sel: '#paper .cv-sec:has(.cv-entry ul) > h2', show: '#paper .cv-sec:has(.cv-entry ul)', zh: ['區塊', '點區塊標題可以改名。⋮⋮ 拖動整個區塊，× 刪除區塊，上方的 ＋ 區塊 可以新增一個。刪除區塊不會刪到卡片庫裡的卡片。'],
+    en: ['Sections', 'Click a section heading to rename it. Drag ⋮⋮ to move the section, × deletes it, and ＋ Section at the top adds a new one. Deleting a section never deletes cards from the library.'] },
+  { sel: ['#hUndo', '#hRedo'], zh: ['刪錯了可以返回', '不小心刪掉或改錯，按 ↶ 返回上一步，↷ 再重做回來。也可以用 Ctrl+Z（Mac 是 ⌘Z）。正在打字的時候，Ctrl+Z 只會復原那一格裡的文字。'],
+    en: ['Undo a mistake', 'Deleted or changed something by accident? Press ↶ to undo and ↷ to redo, or use Ctrl+Z (⌘Z on Mac). While you are typing in a field, Ctrl+Z only undoes the text in that field.'] },
+  { sel: '#verSel', zh: ['每個職缺一個版本', '投不同職缺時，新增或複製一個版本，挑不同的卡片、條目和順序。'],
+    en: ['One version per job', 'Make or duplicate a version for each application and pick different cards and bullets for it.'] },
+  { sel: ['#openJob', '#openProfile'], zh: ['職缺資訊與個人資料', '「職缺資訊」可以貼上 JD 做筆記，不會印出來。「個人資料」放姓名、聯絡方式和簽證狀態。'],
+    en: ['Job info and profile', 'Paste the job description into Job info for notes; it is never printed. Your name, contact details and visa status go in Profile details.'] },
+  { sel: ['#bkExport', '#bkImport', '#expDocx', '#expPdf'], zh: ['匯出', '完成後匯出 DOCX 或 PDF。資料只存在這個瀏覽器裡，記得偶爾按「匯出備份」，換電腦時再匯入。'],
+    en: ['Export', 'Export as DOCX or PDF when you are done. Your data lives only in this browser, so use Export backup now and then, and import it on another computer.'] },
+  { sel: '#tourBtn', zh: ['隨時再看一次', '想再看這個導覽，按這裡就好。'],
+    en: ['See this again', 'Press here any time to replay this tour.'] }
+];
+let tourI = -1, tourEls = null;
+function tourTarget(i) {
+  const sels = [].concat(TOUR[i].sel);
+  const rs = sels.map(q => document.querySelector(q)).filter(Boolean).map(e => e.getBoundingClientRect()).filter(r => r.width && r.height);
+  if (!rs.length) return null;
+  const left = Math.min(...rs.map(r => r.left)), top = Math.min(...rs.map(r => r.top)), right = Math.max(...rs.map(r => r.right)), bottom = Math.max(...rs.map(r => r.bottom));
+  return { getBoundingClientRect: () => ({ left, top, right, bottom, width: right - left, height: bottom - top }) };
+}
+function tourPlace() {
+  if (tourI < 0 || !tourEls) return;
+  const el = tourTarget(tourI), { spot, tip } = tourEls;
+  const vw = innerWidth, vh = innerHeight;
+  if (!el) { spot.style.cssText = `left:${vw/2}px;top:${vh/2}px;width:0;height:0`; }
+  const r = el ? el.getBoundingClientRect() : { left: vw/2, top: vh/2, width: 0, height: 0, right: vw/2, bottom: vh/2 };
+  const pad = 4;
+  const top = Math.max(r.top, 0), bottom = Math.min(r.bottom, vh);
+  if (el) Object.assign(spot.style, { left: r.left - pad + 'px', top: top - pad + 'px', width: r.width + pad*2 + 'px', height: bottom - top + pad*2 + 'px' });
+  const tw = tip.offsetWidth, th = tip.offsetHeight, gap = 14;
+  let x, y;
+  if (bottom + gap + th < vh) { y = bottom + gap; x = r.left; }
+  else if (top - gap - th > 0) { y = top - gap - th; x = r.left; }
+  else if (r.right + gap + tw < vw) { x = r.right + gap; y = top + 20; }
+  else if (r.left - gap - tw > 0) { x = r.left - gap - tw; y = top + 20; }
+  else { x = (vw - tw) / 2; y = vh - th - 20; }
+  x = Math.min(Math.max(x, 12), vw - tw - 12); y = Math.min(Math.max(y, 12), vh - th - 12);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function tourShow(i) {
+  if (i < 0) i = 0;
+  if (i >= TOUR.length) return tourEnd();
+  tourI = i;
+  const step = TOUR[i];
+  if (['#libCol', '#newCard', '#libList .libcard'].includes(step.sel) && $('.main').classList.contains('collapsed')) $('#libShow').click();
+  const el = document.querySelector([].concat(step.sel)[0]);
+  document.querySelectorAll('.tour-ctl').forEach(n => n.classList.remove('tour-ctl'));
+  if (step.show) document.querySelector(step.show)?.classList.add('tour-ctl');
+  if (el && el.closest('#paperWrap, #libList')) el.scrollIntoView({ block: 'center' });
+  const [h, t] = step[LANG] || step.zh, en = LANG === 'en';
+  const last = i === TOUR.length - 1;
+  tourEls.tip.innerHTML = `<h4>${esc(h)}</h4><p>${esc(t)}</p><div class="tour-foot"><span class="n">${i + 1} / ${TOUR.length}</span>`
+    + (last ? '' : `<button class="ghost" data-t="skip">${en ? 'Skip' : '略過'}</button>`)
+    + (i ? `<button data-t="prev">${en ? 'Back' : '上一步'}</button>` : '')
+    + `<button class="pri" data-t="next">${last ? (en ? 'Got it' : '開始使用') : (en ? 'Next' : '下一步')}</button></div>`;
+  requestAnimationFrame(tourPlace);
+}
+function tourKey(e) {
+  if (e.key === 'Escape') tourEnd();
+  else if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); tourShow(tourI + 1); }
+  else if (e.key === 'ArrowLeft') tourShow(tourI - 1);
+}
+function tourStart() {
+  if (tourEls) tourEnd();
+  closeBulletMenu();
+  const block = document.createElement('div'); block.className = 'tour-block';
+  const spot = document.createElement('div'); spot.className = 'tour-spot';
+  const tip = document.createElement('div'); tip.className = 'tour-tip'; tip.setAttribute('role', 'dialog');
+  tip.onclick = e => { const a = e.target.dataset.t; if (a === 'next') tourShow(tourI + 1); else if (a === 'prev') tourShow(tourI - 1); else if (a === 'skip') tourEnd(); };
+  document.body.append(block, spot, tip);
+  tourEls = { block, spot, tip };
+  addEventListener('resize', tourPlace); addEventListener('scroll', tourPlace, true); addEventListener('keydown', tourKey);
+  tourShow(0);
+}
+function tourEnd() {
+  if (!tourEls) return;
+  Object.values(tourEls).forEach(n => n.remove()); tourEls = null; tourI = -1;
+  document.querySelectorAll('.tour-ctl').forEach(n => n.classList.remove('tour-ctl'));
+  removeEventListener('resize', tourPlace); removeEventListener('scroll', tourPlace, true); removeEventListener('keydown', tourKey);
+  try { localStorage.setItem(TOUR_KEY, '1'); } catch {}
+}
+$('#tourBtn').onclick = tourStart;
+
+/* ---------- undo / redo ---------- */
+const HT = t => (typeof L === 'function' ? L(t) : t);
+const HIST_MAX = 100;
+const hist = { undo: [], redo: [], base: null };
+const histKey = j => j.replace(/"activeVersion":"[^"]*"/, '');
+function histReset() { hist.undo = []; hist.redo = []; hist.base = state ? JSON.stringify(state) : null; histButtons(); }
+function histCommit() {
+  if (!state || hist.base == null) return;
+  const cur = JSON.stringify(state);
+  if (cur === hist.base) return;
+  if (histKey(cur) !== histKey(hist.base)) {
+    hist.undo.push(hist.base); if (hist.undo.length > HIST_MAX) hist.undo.shift();
+    hist.redo = [];
+  }
+  hist.base = cur; histButtons();
+}
+function histTouch() {
+  const a = document.activeElement;
+  const typing = a && (a.isContentEditable || a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(checkbox|radio|file|button)$/i.test(a.type)));
+  if (!typing) histCommit();
+}
+function histButtons() {
+  const u = document.getElementById('hUndo'), r = document.getElementById('hRedo');
+  if (u) u.disabled = !hist.undo.length; if (r) r.disabled = !hist.redo.length;
+}
+function histGo(dir) {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  histCommit();
+  const from = dir < 0 ? hist.undo : hist.redo, to = dir < 0 ? hist.redo : hist.undo;
+  if (!from.length) { toast(HT(dir < 0 ? '沒有可以返回的步驟' : '沒有可以重做的步驟')); return; }
+  to.push(hist.base); hist.base = from.pop();
+  state = sanitize(JSON.parse(hist.base)); ensureActive();
+  safeRenderAll(); histButtons();
+  clearTimeout(saveTimer); flushSave();
+  toast(HT(dir < 0 ? '已返回上一步' : '已重做'));
+}
+document.addEventListener('focusout', e => { const t = e.target; if (t && (t.isContentEditable || t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) histCommit(); });
+document.getElementById('hUndo').onclick = () => histGo(-1);
+document.getElementById('hRedo').onclick = () => histGo(1);
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k !== 'z' && k !== 'y') return;
+  const a = document.activeElement;
+  if (a && (a.isContentEditable || a.tagName === 'TEXTAREA' || a.tagName === 'INPUT')) return; // let text fields undo their own typing
+  if (document.querySelector('.modal-bg:not(.hidden), .tour-tip')) return;
+  e.preventDefault();
+  histGo(k === 'y' || e.shiftKey ? 1 : -1);
+});
+function safeRenderAll() { try { renderAll(); } catch (e) { showFatal(e); } }
+const local = loadLocal();
+captureStatic(); applyStatic();
+state = valid(local) ? sanitize(local) : defaultState();
+ensureActive();
+histReset();
+fitPaper();
+safeRenderAll();
+setStatus(valid(local) ? '已存在這個瀏覽器' : '範例內容，編輯後會自動儲存');
+window.addEventListener('error', e => {
+  const msg = String((e && e.message) || '');
+  if (/ResizeObserver loop/i.test(msg) || (!e.error && /^Script error\.?$/i.test(msg))) return; // harmless browser notices
+  showFatal(e.error || msg);
+});
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => repaginate());
+(() => { let seen = false; try { seen = !!localStorage.getItem(TOUR_KEY); } catch {} if (!seen) setTimeout(tourStart, 700); })();
+const flushNow = () => { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch {} flushSave(); } };
+window.addEventListener('pagehide', flushNow);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushNow(); });
+})();
+</script>
+</body>
+</html>
